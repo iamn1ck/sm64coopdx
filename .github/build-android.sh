@@ -21,7 +21,7 @@ mv OpenXR-SDK-release-1.1.53/include/ ${HOME}/include
 
 
 wget https://github.com/KhronosGroup/Vulkan-Headers/archive/refs/tags/vulkan-sdk-1.3.296.0.zip
-unzip vulkan-sdk-1.3.296.0.tar.gz
+unzip vulkan-sdk-1.3.296.0.zip
 mv Vulkan-Headers-vulkan-sdk-1.3.296.0/include/* ${HOME}/include
 
 
