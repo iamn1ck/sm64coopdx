@@ -25,4 +25,4 @@ unzip vulkan-sdk-1.3.296.0.tar.gz
 mv Vulkan-Headers-vulkan-sdk-1.3.296.0/include/* ${HOME}/include
 
 
-make
+make OPENXR=1
