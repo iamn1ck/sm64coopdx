@@ -2,7 +2,7 @@
 
 yes | pkg upgrade -y # Upgrading Packages
 
-pkg install -y git wget make python getconf zip apksigner clang binutils libglvnd-dev aapt which patchelf curl # Installing Dependencies
+pkg install -y git wget make python getconf zip apksigner clang binutils libglvnd-dev aapt which patchelf curl openxr # Installing Dependencies
 
 pkg reinstall -y libglvnd
 
