@@ -100,7 +100,7 @@ int vr_renderer_init(void)
             g_vr_renderer.xrInstance,
             g_vr_renderer.xrSystemId,
             g_vr_renderer.xrSession,
-            1280, 1440,
+            1280, 720,
             &g_vr_renderer.quadSwapchain)) {
         cerr << "Failed to create OpenXR quad swapchain" << endl;
         return 0;
@@ -311,8 +311,9 @@ int vr_renderer_end_frame(void)
     // Calculate forward vector from the head orientation
     XrQuaternionf q = centerPose.orientation;
     XrVector3f forward;
-    forward.x = 2.0f * (q.x * q.z + q.w * q.y);
-    forward.y = 2.0f * (q.y * q.z - q.w * q.x);
+    // Negate X and Y to get the -Z (Forward) direction
+    forward.x = -2.0f * (q.x * q.z + q.w * q.y);
+    forward.y = -2.0f * (q.y * q.z - q.w * q.x);
     forward.z = -1.0f + 2.0f * (q.x * q.x + q.y * q.y);
     
     // Position the quad 1.5 meters in front of the head
@@ -322,13 +323,8 @@ int vr_renderer_end_frame(void)
     quadPosition.y = centerPose.position.y + forward.y * distance;
     quadPosition.z = centerPose.position.z + forward.z * distance;
     
-    // Conjugate (inverse) the quaternion to make the quad face the player
-    // This counter-rotates the quad so it's always perpendicular to the view direction
-    XrQuaternionf quadOrientation;
-    quadOrientation.x = -centerPose.orientation.x;
-    quadOrientation.y = -centerPose.orientation.y;
-    quadOrientation.z = -centerPose.orientation.z;
-    quadOrientation.w = centerPose.orientation.w;
+    // Use the head orientation directly so the quad rotates with the head
+    XrQuaternionf quadOrientation = centerPose.orientation;
     
     XrCompositionLayerQuad quadLayer{};
     quadLayer.type = XR_TYPE_COMPOSITION_LAYER_QUAD;
@@ -338,7 +334,7 @@ int vr_renderer_end_frame(void)
     quadLayer.subImage.imageRect.offset = {0, 0};
     quadLayer.subImage.imageRect.extent = {(int32_t)g_vr_renderer.quadSwapchain->width, (int32_t)g_vr_renderer.quadSwapchain->height};
     quadLayer.subImage.imageArrayIndex = 0;
-    quadLayer.pose.orientation = quadOrientation; // Use inverted head orientation
+    quadLayer.pose.orientation = quadOrientation;
     quadLayer.pose.position = quadPosition; // Position in front of head
     quadLayer.size = {1.0f, 1.0f}; // 1x1 meter
     quadLayer.eyeVisibility = XR_EYE_VISIBILITY_BOTH;
