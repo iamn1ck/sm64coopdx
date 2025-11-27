@@ -453,31 +453,40 @@ void render_game(void) {
         gDPSetScissor(gDisplayListHead++, G_SC_NON_INTERLACE, 0, BORDER_HEIGHT, SCREEN_WIDTH,
                       SCREEN_HEIGHT - BORDER_HEIGHT);
 
-        if (!gDjuiDisabled) {
-            djui_reset_hud_params();
-            create_dl_ortho_matrix();
-            djui_gfx_displaylist_begin();
-            if (gServerSettings.nametags && !gDjuiInMainMenu) {
-                nametags_render();
+#ifdef OPENXR_ENABLED
+        extern bool gRenderingVREyes;
+        // Skip HUD and UI rendering when rendering to VR eye buffers
+        // These will be rendered separately to the quad layer
+        if (!gRenderingVREyes) {
+#endif
+            if (!gDjuiDisabled) {
+                djui_reset_hud_params();
+                create_dl_ortho_matrix();
+                djui_gfx_displaylist_begin();
+                if (gServerSettings.nametags && !gDjuiInMainMenu) {
+                    nametags_render();
+                }
+                smlua_call_event_hooks(HOOK_ON_HUD_RENDER_BEHIND, djui_reset_hud_params);
+                djui_gfx_displaylist_end();
             }
-            smlua_call_event_hooks(HOOK_ON_HUD_RENDER_BEHIND, djui_reset_hud_params);
-            djui_gfx_displaylist_end();
-        }
-        render_hud();
+            render_hud();
 
-        gDPSetScissor(gDisplayListHead++, G_SC_NON_INTERLACE, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
-        render_text_labels();
-        do_cutscene_handler();
-        if (!gDjuiInMainMenu) {
-            print_displaying_credits_entry();
-        }
-        gDPSetScissor(gDisplayListHead++, G_SC_NON_INTERLACE, 0, BORDER_HEIGHT, SCREEN_WIDTH,
-                      SCREEN_HEIGHT - BORDER_HEIGHT);
-        gPauseScreenMode = render_menus_and_dialogs();
+            gDPSetScissor(gDisplayListHead++, G_SC_NON_INTERLACE, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+            render_text_labels();
+            do_cutscene_handler();
+            if (!gDjuiInMainMenu) {
+                print_displaying_credits_entry();
+            }
+            gDPSetScissor(gDisplayListHead++, G_SC_NON_INTERLACE, 0, BORDER_HEIGHT, SCREEN_WIDTH,
+                          SCREEN_HEIGHT - BORDER_HEIGHT);
+            gPauseScreenMode = render_menus_and_dialogs();
 
-        if (gPauseScreenMode != 0) {
-            gSaveOptSelectIndex = gPauseScreenMode;
+            if (gPauseScreenMode != 0) {
+                gSaveOptSelectIndex = gPauseScreenMode;
+            }
+#ifdef OPENXR_ENABLED
         }
+#endif
 
         if (gViewportClip != NULL) {
             make_viewport_clip_rect(gViewportClip);
