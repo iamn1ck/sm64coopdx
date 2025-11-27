@@ -167,6 +167,10 @@ ifeq ($(TARGET_ANDROID),1)
   HANDHELD := 1
 endif
 
+ifeq ($(OPENXR),1)
+  TOUCH_CONTROLS := 0
+endif
+
 ifeq ($(WINDOWS_BUILD),1)
   ifeq ($(CROSS),i686-w64-mingw32.static-)
     TARGET_ARCH = i386pe
