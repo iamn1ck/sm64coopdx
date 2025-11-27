@@ -1688,8 +1688,6 @@ else
   ifeq ($(TARGET_ANDROID),1)
     APK_FILES := $(shell find platform/android/ -type f)
 
-  $(info $(ANDROID_ARCH))
-
   # Copying Libraries and Assets
   $(ZIP_UNCOMPRESSED): $(EXE) $(APK_FILES)
 	@cp -r platform/android $(BUILD_DIR)/platform/ >/dev/null 2>&1 && \
