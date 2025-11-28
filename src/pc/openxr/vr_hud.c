@@ -49,6 +49,7 @@ extern void render_text_labels(void);
 extern void do_cutscene_handler(void);
 extern void print_displaying_credits_entry(void);
 extern void gfx_run_commands_immediate(Gfx *commands);
+extern void print_act_selector_strings(void);
 
 // External variables
 extern Gfx *gDisplayListHead;
@@ -57,6 +58,7 @@ extern bool gDjuiInMainMenu;
 extern s16 gPauseScreenMode;
 extern s16 gSaveOptSelectIndex;
 extern struct Area *gCurrentArea;
+extern u8 gOverrideHideActSelectHud;
 
 void vr_render_hud_to_quad(void) {
     if (!vr_opengl_is_initialized()) {
@@ -122,6 +124,9 @@ void vr_render_hud_to_quad(void) {
     if (!gDjuiInMainMenu) {
         print_displaying_credits_entry();
     }
+    
+    // Render star select menu if active
+    print_act_selector_strings();
     
     gPauseScreenMode = render_menus_and_dialogs();
     if (gPauseScreenMode != 0) {

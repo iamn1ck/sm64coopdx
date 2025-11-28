@@ -21,6 +21,11 @@
 #include "engine/geo_layout.h"
 #include "save_file.h"
 #include "level_table.h"
+#include "pc/nametags.h"
+#include "engine/lighting_engine.h"
+#ifdef OPENXR_ENABLED
+#include "pc/openxr/openxr_manager.h"
+#endif
 #include "gfx_dimensions.h"
 #include "game/ingame_menu.h"
 #include "pc/network/network.h"
@@ -455,9 +460,15 @@ void render_game(void) {
 
 #ifdef OPENXR_ENABLED
         extern bool gRenderingVREyes;
+
+        // extern bool gRenderingVREyes;
+        // extern int vr_renderer_is_initialized(void);
+        // // Skip HUD rendering entirely in VR mode - it will be rendered to the quad layer instead
+        // this if statement makes the left eye not render in the caste for some reason
+        // if (!vr_renderer_is_initialized()) {
         // Skip HUD and UI rendering when rendering to VR eye buffers
         // These will be rendered separately to the quad layer
-        if (!gRenderingVREyes) {
+        if (!openxr_is_initialized()) {
 #endif
             if (!gDjuiDisabled) {
                 djui_reset_hud_params();
@@ -485,6 +496,10 @@ void render_game(void) {
                 gSaveOptSelectIndex = gPauseScreenMode;
             }
 #ifdef OPENXR_ENABLED
+        } else {
+            // Ensure projection matrix is reset to Ortho even if we don't render HUD
+            // This prevents state leakage that causes the left eye to stop rendering
+            render_text_labels();
         }
 #endif
 
@@ -510,12 +525,22 @@ void render_game(void) {
             }
         }
     } else {
+#ifdef OPENXR_ENABLED
+        if (!openxr_is_initialized()) {
+#endif
         render_text_labels();
         if (gViewportClip != NULL) {
             clear_viewport(gViewportClip, gWarpTransFBSetColor);
         } else {
             clear_frame_buffer(gWarpTransFBSetColor);
         }
+#ifdef OPENXR_ENABLED
+        } else {
+            // Ensure projection matrix is reset to Ortho even if we don't render HUD
+            // This prevents state leakage that causes the left eye to stop rendering
+            render_text_labels();
+        }
+#endif
     }
 
     gViewportOverride = NULL;

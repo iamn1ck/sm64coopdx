@@ -362,7 +362,7 @@ int vr_renderer_end_frame(void)
     float distance = 1.5f;
     XrVector3f quadPosition;
     quadPosition.x = centerPose.position.x + forward.x * distance;
-    quadPosition.y = centerPose.position.y + forward.y * distance;
+    quadPosition.y = centerPose.position.y + forward.y * distance - 0.3f; 
     quadPosition.z = centerPose.position.z + forward.z * distance;
     
     // Use the head orientation directly so the quad rotates with the head
@@ -379,7 +379,7 @@ int vr_renderer_end_frame(void)
     hudQuadLayer.subImage.imageArrayIndex = 0;
     hudQuadLayer.pose.orientation = quadOrientation;
     hudQuadLayer.pose.position = quadPosition; // Position in front of head
-    hudQuadLayer.size = {1.0f, 1.0f}; // 1x1 meter
+    hudQuadLayer.size = {2.0f, 2.0f}; // 2x2 meter
     hudQuadLayer.eyeVisibility = XR_EYE_VISIBILITY_BOTH;
 
     // DJUI Quad Layer - Head-locked (same position as HUD, but rendered on top)
