@@ -59,6 +59,8 @@ extern s16 gPauseScreenMode;
 extern s16 gSaveOptSelectIndex;
 extern struct Area *gCurrentArea;
 extern u8 gOverrideHideActSelectHud;
+extern s16 gCurrCourseNum;
+extern s16 gCurrActNum;
 
 void vr_render_hud_to_quad(void) {
     if (!vr_opengl_is_initialized()) {
@@ -125,8 +127,11 @@ void vr_render_hud_to_quad(void) {
         print_displaying_credits_entry();
     }
     
-    // Render star select menu if active
-    print_act_selector_strings();
+    // Render star select menu only when in star select screen (course selected but not loaded yet)
+    // gCurrCourseNum > 0 means we've selected a course, gCurrActNum == 0 means we haven't loaded into it yet
+    if (gCurrCourseNum > 0 && gCurrActNum == 0) {
+        print_act_selector_strings();
+    }
     
     gPauseScreenMode = render_menus_and_dialogs();
     if (gPauseScreenMode != 0) {
