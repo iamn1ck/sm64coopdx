@@ -129,6 +129,7 @@ void vr_render_hud_to_quad(void) {
     
     // Render star select menu only when in star select screen (course selected but not loaded yet)
     // gCurrCourseNum > 0 means we've selected a course, gCurrActNum == 0 means we haven't loaded into it yet
+    // needs fix for bowser levels and other levels without a select screen
     if (gCurrCourseNum > 0 && gCurrActNum == 0) {
         print_act_selector_strings();
     }
