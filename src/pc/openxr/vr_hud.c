@@ -133,7 +133,7 @@ void vr_render_hud_to_quad(void) {
         print_act_selector_strings();
     }
     
-    gPauseScreenMode = render_menus_and_dialogs();
+    render_menus_and_dialogs();
     if (gPauseScreenMode != 0) {
         gSaveOptSelectIndex = gPauseScreenMode;
     }

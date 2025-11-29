@@ -461,14 +461,17 @@ void render_game(void) {
 #ifdef OPENXR_ENABLED
         extern bool gRenderingVREyes;
 
-        // extern bool gRenderingVREyes;
         // extern int vr_renderer_is_initialized(void);
-        // // Skip HUD rendering entirely in VR mode - it will be rendered to the quad layer instead
-        // this if statement makes the left eye not render in the caste for some reason
         // if (!vr_renderer_is_initialized()) {
         // Skip HUD and UI rendering when rendering to VR eye buffers
         // These will be rendered separately to the quad layer
-        if (!openxr_is_initialized()) {
+
+        // TODO: fix
+        // this chunk of code will stop rendering left eye in castle when it is false
+        // with gRenderingVREyes as the condition, it still shows 2d elements when paused
+        // with vr_renderer fixes that, but doesnt render left eye in headset
+
+        if (!gRenderingVREyes) {
 #endif
             if (!gDjuiDisabled) {
                 djui_reset_hud_params();
