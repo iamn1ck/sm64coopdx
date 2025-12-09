@@ -26,10 +26,9 @@ static jobject gAndroidActivityGlobalRef = nullptr;
 static const char* const extensionNames[] = {
     "XR_KHR_vulkan_enable",
     "XR_KHR_vulkan_enable2",
-    "XR_EXT_debug_utils"
-    // for quest keyboard support in the future
-    // "XR_FB_KEYBOARD_EXTENSION_NAME",
-    // "XR_FB_KEYBOARD_TRACKING_EXTENSION_NAME"
+    "XR_EXT_debug_utils",
+    "XR_META_virtual_keyboard",
+    "XR_FB_render_model"
 };
 
 PFN_xrVoidFunction getXRFunction(XrInstance instance, const char* name)
