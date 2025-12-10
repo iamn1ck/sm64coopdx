@@ -350,6 +350,33 @@ int openxr_update(void)
                 SDL_PushEvent(&event);
                 break;
             }
+            case XR_TYPE_EVENT_DATA_VIRTUAL_KEYBOARD_ENTER_META: {
+                // Send Enter key press and release to SDL as fallback
+                SDL_Event event;
+                
+                // Key down
+                event.type = SDL_KEYDOWN;
+                event.key.timestamp = SDL_GetTicks();
+                event.key.windowID = 0;
+                event.key.state = SDL_PRESSED;
+                event.key.repeat = 0;
+                event.key.keysym.scancode = SDL_SCANCODE_RETURN;
+                event.key.keysym.sym = SDLK_RETURN;
+                event.key.keysym.mod = KMOD_NONE;
+                SDL_PushEvent(&event);
+                
+                // Key up
+                event.type = SDL_KEYUP;
+                event.key.timestamp = SDL_GetTicks();
+                event.key.windowID = 0;
+                event.key.state = SDL_RELEASED;
+                event.key.repeat = 0;
+                event.key.keysym.scancode = SDL_SCANCODE_RETURN;
+                event.key.keysym.sym = SDLK_RETURN;
+                event.key.keysym.mod = KMOD_NONE;
+                SDL_PushEvent(&event);
+                break;
+            }
             default:
                 break;
         }

@@ -1,11 +1,17 @@
 #ifdef OPENXR_ENABLED
 
 #include "controller_openxr.h"
-#include "pc/openxr/openxr_manager.h"
-#include "pc/openxr/openxr_keyboard.h"
 
 #include <ultra64.h>
 #include <PR/os_cont.h>
+#include "pc/openxr/openxr_manager.h"
+#include "pc/openxr/openxr_keyboard.h"
+
+extern "C" {
+
+#include "pc/pc_main.h"
+#include "pc/djui/djui.h"
+}
 
 #include <iostream>
 #include <vector>
@@ -45,6 +51,7 @@ static XrAction s_actionMovement = XR_NULL_HANDLE; // Left stick
 static XrAction s_actionStart = XR_NULL_HANDLE;
 static XrAction s_actionL = XR_NULL_HANDLE;
 static XrAction s_actionR = XR_NULL_HANDLE;
+static XrAction s_actionToggleKeyboard = XR_NULL_HANDLE; // Y button
 
 // Paths
 static XrPath s_pathHandLeft = XR_NULL_PATH;
@@ -130,6 +137,12 @@ static void controller_openxr_init(void) {
     strcpy(actionInfo.localizedActionName, "Camera");
     XR_CHECK(xrCreateAction(s_actionSet, &actionInfo, &s_actionCamera));
 
+    // Toggle Keyboard (Y button)
+    actionInfo.actionType = XR_ACTION_TYPE_BOOLEAN_INPUT;
+    strcpy(actionInfo.actionName, "toggle_keyboard");
+    strcpy(actionInfo.localizedActionName, "Toggle Keyboard");
+    XR_CHECK(xrCreateAction(s_actionSet, &actionInfo, &s_actionToggleKeyboard));
+
     // Aim Poses
     actionInfo.actionType = XR_ACTION_TYPE_POSE_INPUT;
     strcpy(actionInfo.actionName, "aim_left");
@@ -174,6 +187,7 @@ static void controller_openxr_init(void) {
     addBinding(s_actionCamera, "/user/hand/right/input/thumbstick");
     addBinding(s_actionL, "/user/hand/left/input/squeeze/value"); // Grab/Grip
     addBinding(s_actionR, "/user/hand/right/input/squeeze/value"); // Grab/Grip
+    addBinding(s_actionToggleKeyboard, "/user/hand/left/input/y/click"); // Y button for keyboard toggle
 
     // Keyboard Bindings
     addBinding(s_actionPoseLeft, "/user/hand/left/input/aim/pose");
@@ -275,6 +289,22 @@ static void controller_openxr_read(OSContPad *pad) {
     if (camera.x < -threshold) pad->button |= L_CBUTTONS;
     if (camera.y > threshold) pad->button |= U_CBUTTONS;
     if (camera.y < -threshold) pad->button |= D_CBUTTONS;
+
+    // Handle Y button for keyboard toggle
+    static bool s_lastToggleState = false;
+    bool currentToggleState = getBool(s_actionToggleKeyboard);
+    
+    // Toggle chat box on button press (rising edge detection)
+    if (currentToggleState && !s_lastToggleState) {
+        djui_chat_box_toggle();
+        if (gDjuiChatBoxFocus) {
+            openxr_show_keyboard();
+        } else {
+            openxr_hide_keyboard();
+        }
+    }
+    s_lastToggleState = currentToggleState;
+
 
     // Send keyboard input
     if (openxr_is_keyboard_visible()) {
