@@ -392,9 +392,23 @@ static void controller_openxr_read(OSContPad *pad) {
     // Handle Y button for keyboard toggle
     static bool s_lastToggleState = false;
     bool currentToggleState = getBool(s_actionToggleKeyboard);
+    bool leftHandMenuPressed = false;
+
+    // Update hand tracking data every frame (needed for menu button detection)
+    XrTime time = openxr_get_predicted_display_time();
     
-    // Toggle chat box on button press (rising edge detection)
-    if (currentToggleState && !s_lastToggleState) {
+    // Update hand tracking state
+    if (xrLocateHandJointsEXT) {
+        // Left hand
+        if (update_hand_tracking(s_handTrackerLeft, s_keyboardReferenceSpace, time, &s_locationsLeft, &s_aimStateLeft)) {
+            leftHandMenuPressed = (s_aimStateLeft.status & XR_HAND_TRACKING_AIM_MENU_PRESSED_BIT_FB) != 0;
+        }
+        
+        // Right hand (update tracking data)
+        update_hand_tracking(s_handTrackerRight, s_keyboardReferenceSpace, time, &s_locationsRight, &s_aimStateRight);
+    }
+
+    if ((currentToggleState || leftHandMenuPressed) && !s_lastToggleState) {
         djui_chat_box_toggle();
         if (gDjuiChatBoxFocus) {
             openxr_show_keyboard();
@@ -404,11 +418,8 @@ static void controller_openxr_read(OSContPad *pad) {
     }
     s_lastToggleState = currentToggleState;
 
-
-    // Send keyboard input
+    // Send keyboard input only when keyboard is visible
     if (openxr_is_keyboard_visible()) {
-        XrTime time = openxr_get_predicted_display_time();
-
         auto sendInput = [&](XrSpace space, XrAction selectAction, XrVirtualKeyboardInputSourceMETA source) {
             XrSpaceLocation location{XR_TYPE_SPACE_LOCATION};
             // Use keyboard reference space (STAGE without rotation/offset) instead of game's reference space
@@ -435,10 +446,10 @@ static void controller_openxr_read(OSContPad *pad) {
         sendInput(s_spacePoseLeft, s_actionSelectLeft, XR_VIRTUAL_KEYBOARD_INPUT_SOURCE_CONTROLLER_RAY_LEFT_META);
         sendInput(s_spacePoseRight, s_actionSelectRight, XR_VIRTUAL_KEYBOARD_INPUT_SOURCE_CONTROLLER_RAY_RIGHT_META);
         
-        // Send hand tracking input (using direct hand tracking API)
+        // Send hand tracking input for keyboard (using already-updated tracking data)
         if (xrLocateHandJointsEXT) {
             // Left hand
-            if (update_hand_tracking(s_handTrackerLeft, s_keyboardReferenceSpace, time, &s_locationsLeft, &s_aimStateLeft)) {
+            if (s_locationsLeft.isActive) {
                 bool pinching = (s_aimStateLeft.status & XR_HAND_TRACKING_AIM_INDEX_PINCHING_BIT_FB) != 0;
                 XrPosef aimPose = s_aimStateLeft.aimPose;
                 XrPosef palmPose = s_jointLocationsLeft[XR_HAND_JOINT_PALM_EXT].pose;
@@ -453,7 +464,7 @@ static void controller_openxr_read(OSContPad *pad) {
             }
             
             // Right hand
-            if (update_hand_tracking(s_handTrackerRight, s_keyboardReferenceSpace, time, &s_locationsRight, &s_aimStateRight)) {
+            if (s_locationsRight.isActive) {
                 bool pinching = (s_aimStateRight.status & XR_HAND_TRACKING_AIM_INDEX_PINCHING_BIT_FB) != 0;
                 XrPosef aimPose = s_aimStateRight.aimPose;
                 XrPosef palmPose = s_jointLocationsRight[XR_HAND_JOINT_PALM_EXT].pose;
