@@ -134,8 +134,6 @@ void MatrixFromTRS(const std::vector<double>& t, const std::vector<double>& r, c
 }
 
 void ProcessMesh(const tinygltf::Model& model, const tinygltf::Mesh& gltfMesh, const float* transform, int nodeIndex, Model& outModel) {
-    std::cout << "glTF: Processing mesh '" << gltfMesh.name << "' with " << gltfMesh.primitives.size() << " primitives" << std::endl;
-    
     // Create a new KeyboardModel for this mesh (Meta's pattern)
     // All primitives in this glTF mesh become surfaces in one KeyboardModel
     KeyboardModel keyboardModel;
@@ -368,8 +366,6 @@ void ProcessMesh(const tinygltf::Model& model, const tinygltf::Mesh& gltfMesh, c
     
     // Add the KeyboardModel to the output
     outModel.models.push_back(keyboardModel);
-    
-    std::cout << "glTF: Created KeyboardModel with " << keyboardModel.surfaces.size() << " surfaces" << std::endl;
 }
 
 void ParseAnimation(const tinygltf::Model& model, Model& outModel) {

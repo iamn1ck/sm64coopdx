@@ -57,7 +57,7 @@ static XrAction s_actionToggleKeyboard = XR_NULL_HANDLE; // Y button
 static XrPath s_pathHandLeft = XR_NULL_PATH;
 static XrPath s_pathHandRight = XR_NULL_PATH;
 
-// Keyboard interaction
+// Keyboard interaction (controller-based)
 static XrAction s_actionPoseLeft = XR_NULL_PATH;
 static XrAction s_actionPoseRight = XR_NULL_PATH;
 static XrAction s_actionSelectLeft = XR_NULL_PATH;
@@ -67,6 +67,57 @@ static XrSpace s_spacePoseRight = XR_NULL_HANDLE;
 
 // Separate reference space for keyboard (STAGE without rotation/offset)
 static XrSpace s_keyboardReferenceSpace = XR_NULL_HANDLE;
+
+// Hand tracking extension functions
+static PFN_xrCreateHandTrackerEXT xrCreateHandTrackerEXT = nullptr;
+static PFN_xrDestroyHandTrackerEXT xrDestroyHandTrackerEXT = nullptr;
+static PFN_xrLocateHandJointsEXT xrLocateHandJointsEXT = nullptr;
+
+// Hand tracking handles and state
+static XrHandTrackerEXT s_handTrackerLeft = XR_NULL_HANDLE;
+static XrHandTrackerEXT s_handTrackerRight = XR_NULL_HANDLE;
+static XrHandJointLocationEXT s_jointLocationsLeft[XR_HAND_JOINT_COUNT_EXT];
+static XrHandJointLocationEXT s_jointLocationsRight[XR_HAND_JOINT_COUNT_EXT];
+static XrHandTrackingAimStateFB s_aimStateLeft{XR_TYPE_HAND_TRACKING_AIM_STATE_FB};
+static XrHandTrackingAimStateFB s_aimStateRight{XR_TYPE_HAND_TRACKING_AIM_STATE_FB};
+static XrHandJointLocationsEXT s_locationsLeft{XR_TYPE_HAND_JOINT_LOCATIONS_EXT};
+static XrHandJointLocationsEXT s_locationsRight{XR_TYPE_HAND_JOINT_LOCATIONS_EXT};
+
+// Helper function to update hand tracking and get aim state
+static bool update_hand_tracking(XrHandTrackerEXT tracker, XrSpace baseSpace, XrTime time,
+                                  XrHandJointLocationsEXT* locations,
+                                  XrHandTrackingAimStateFB* aimState) {
+    if (!xrLocateHandJointsEXT || tracker == XR_NULL_HANDLE) {
+        return false;
+    }
+    
+    // Reset aim state
+    aimState->next = nullptr;
+    
+    // Chain aim state to locations
+    locations->next = aimState;
+    
+    // Locate hand joints
+    XrHandJointsLocateInfoEXT locateInfo{XR_TYPE_HAND_JOINTS_LOCATE_INFO_EXT};
+    locateInfo.baseSpace = baseSpace;
+    locateInfo.time = time;
+    
+    if (XR_FAILED(xrLocateHandJointsEXT(tracker, &locateInfo, locations))) {
+        return false;
+    }
+    
+    // Check if tracking is active and position is valid
+    if (!locations->isActive) {
+        return false;
+    }
+    
+    // Check if palm joint has valid position
+    if (!(locations->jointLocations[XR_HAND_JOINT_PALM_EXT].locationFlags & XR_SPACE_LOCATION_POSITION_VALID_BIT)) {
+        return false;
+    }
+    
+    return true;
+}
 
 static void controller_openxr_init(void) {
     if (s_initialized) return;
@@ -153,7 +204,7 @@ static void controller_openxr_init(void) {
     strcpy(actionInfo.localizedActionName, "Aim Right");
     XR_CHECK(xrCreateAction(s_actionSet, &actionInfo, &s_actionPoseRight));
 
-    // Select (Trigger)
+    // Select (Trigger) for controller keyboard input
     actionInfo.actionType = XR_ACTION_TYPE_FLOAT_INPUT;
     strcpy(actionInfo.actionName, "select_left");
     strcpy(actionInfo.localizedActionName, "Select Left");
@@ -166,9 +217,6 @@ static void controller_openxr_init(void) {
     // Suggest Bindings
     XrPath pathInteractionProfile = XR_NULL_PATH;
     
-    // Oculus Touch
-    xrStringToPath(instance, "/interaction_profiles/oculus/touch_controller", &pathInteractionProfile);
-    
     std::vector<XrActionSuggestedBinding> bindings;
     auto addBinding = [&](XrAction action, const char* pathStr) {
         XrPath path;
@@ -176,20 +224,22 @@ static void controller_openxr_init(void) {
         bindings.push_back({action, path});
     };
 
-    // Oculus Bindings
+    // ===== Oculus Touch Controller Profile =====
+    xrStringToPath(instance, "/interaction_profiles/oculus/touch_controller", &pathInteractionProfile);
+    
+    // Controller Bindings
     addBinding(s_actionJump, "/user/hand/right/input/a/click");
-    addBinding(s_actionAttack, "/user/hand/right/input/b/click"); // Or X/Y on left?
-    addBinding(s_actionCrouch, "/user/hand/left/input/trigger/value"); // Left trigger for Z
-    addBinding(s_actionCrouch, "/user/hand/right/input/trigger/value"); // Right trigger for Z (alternative)
-    addBinding(s_actionStart, "/user/hand/left/input/menu/click"); // Menu button
-    addBinding(s_actionMovement, "/user/hand/left/input/thumbstick");
+    addBinding(s_actionAttack, "/user/hand/right/input/b/click");
+    addBinding(s_actionCrouch, "/user/hand/left/input/trigger/value");
+    addBinding(s_actionCrouch, "/user/hand/right/input/trigger/value");
+    addBinding(s_actionStart, "/user/hand/left/input/menu/click");
     addBinding(s_actionMovement, "/user/hand/left/input/thumbstick");
     addBinding(s_actionCamera, "/user/hand/right/input/thumbstick");
-    addBinding(s_actionL, "/user/hand/left/input/squeeze/value"); // Grab/Grip
-    addBinding(s_actionR, "/user/hand/right/input/squeeze/value"); // Grab/Grip
-    addBinding(s_actionToggleKeyboard, "/user/hand/left/input/y/click"); // Y button for keyboard toggle
-
-    // Keyboard Bindings
+    addBinding(s_actionL, "/user/hand/left/input/squeeze/value");
+    addBinding(s_actionR, "/user/hand/right/input/squeeze/value");
+    addBinding(s_actionToggleKeyboard, "/user/hand/left/input/y/click");
+    
+    // Controller keyboard bindings (aim pose and trigger for selection)
     addBinding(s_actionPoseLeft, "/user/hand/left/input/aim/pose");
     addBinding(s_actionPoseRight, "/user/hand/right/input/aim/pose");
     addBinding(s_actionSelectLeft, "/user/hand/left/input/trigger/value");
@@ -201,12 +251,54 @@ static void controller_openxr_init(void) {
     suggestedBindings.countSuggestedBindings = (uint32_t)bindings.size();
     XR_CHECK(xrSuggestInteractionProfileBindings(instance, &suggestedBindings));
 
+    // Note: XR_EXT_hand_interaction extension is not fully supported on this Quest runtime
+    // Hand tracking for keyboard input will need to be implemented using the direct
+    // hand tracking API (XR_EXT_hand_tracking + XR_FB_hand_tracking_aim) instead
+
     // Attach Action Set to Session
     XrSessionActionSetsAttachInfo attachInfo{XR_TYPE_SESSION_ACTION_SETS_ATTACH_INFO};
     attachInfo.countActionSets = 1;
     attachInfo.actionSets = &s_actionSet;
     XR_CHECK(xrAttachSessionActionSets(session, &attachInfo));
 
+    // Initialize hand tracking
+    std::cout << "Initializing Hand Tracking..." << std::endl;
+    
+    // Get extension function pointers
+    XR_CHECK(xrGetInstanceProcAddr(instance, "xrCreateHandTrackerEXT", (PFN_xrVoidFunction*)(&xrCreateHandTrackerEXT)));
+    XR_CHECK(xrGetInstanceProcAddr(instance, "xrDestroyHandTrackerEXT", (PFN_xrVoidFunction*)(&xrDestroyHandTrackerEXT)));
+    XR_CHECK(xrGetInstanceProcAddr(instance, "xrLocateHandJointsEXT", (PFN_xrVoidFunction*)(&xrLocateHandJointsEXT)));
+    
+    if (xrCreateHandTrackerEXT && xrLocateHandJointsEXT) {
+        // Create left hand tracker
+        XrHandTrackerCreateInfoEXT createInfo{XR_TYPE_HAND_TRACKER_CREATE_INFO_EXT};
+        createInfo.handJointSet = XR_HAND_JOINT_SET_DEFAULT_EXT;
+        createInfo.hand = XR_HAND_LEFT_EXT;
+        if (XR_SUCCEEDED(xrCreateHandTrackerEXT(session, &createInfo, &s_handTrackerLeft))) {
+            std::cout << "Left hand tracker created successfully" << std::endl;
+        } else {
+            std::cerr << "Failed to create left hand tracker" << std::endl;
+        }
+        
+        // Create right hand tracker
+        createInfo.hand = XR_HAND_RIGHT_EXT;
+        if (XR_SUCCEEDED(xrCreateHandTrackerEXT(session, &createInfo, &s_handTrackerRight))) {
+            std::cout << "Right hand tracker created successfully" << std::endl;
+        } else {
+            std::cerr << "Failed to create right hand tracker" << std::endl;
+        }
+        
+        // Initialize joint locations structures
+        s_locationsLeft.jointCount = XR_HAND_JOINT_COUNT_EXT;
+        s_locationsLeft.jointLocations = s_jointLocationsLeft;
+        s_locationsLeft.next = &s_aimStateLeft;
+        
+        s_locationsRight.jointCount = XR_HAND_JOINT_COUNT_EXT;
+        s_locationsRight.jointLocations = s_jointLocationsRight;
+        s_locationsRight.next = &s_aimStateRight;
+    } else {
+        std::cerr << "Hand tracking extensions not available" << std::endl;
+    }
 
     // Create Action Spaces
     XrActionSpaceCreateInfo actionSpaceInfo{XR_TYPE_ACTION_SPACE_CREATE_INFO};
@@ -216,6 +308,8 @@ static void controller_openxr_init(void) {
 
     actionSpaceInfo.action = s_actionPoseRight;
     XR_CHECK(xrCreateActionSpace(session, &actionSpaceInfo, &s_spacePoseRight));
+
+
 
     // Create keyboard reference space (STAGE without rotation/offset)
     XrReferenceSpaceCreateInfo keyboardSpaceInfo{XR_TYPE_REFERENCE_SPACE_CREATE_INFO};
@@ -257,15 +351,19 @@ static void controller_openxr_read(OSContPad *pad) {
         return false;
     };
 
-    // Helper to get vector2 state
-    auto getVec2 = [&](XrAction action) -> XrVector2f {
+    // Helper to get vector2 state with active flag
+    struct Vec2State {
+        XrVector2f value;
+        bool isActive;
+    };
+    auto getVec2 = [&](XrAction action) -> Vec2State {
         XrActionStateGetInfo getInfo{XR_TYPE_ACTION_STATE_GET_INFO};
         getInfo.action = action;
         XrActionStateVector2f state{XR_TYPE_ACTION_STATE_VECTOR2F};
         if (XR_SUCCEEDED(xrGetActionStateVector2f(session, &getInfo, &state))) {
-            if (state.isActive) return state.currentState;
+            return {state.currentState, static_cast<bool>(state.isActive)};
         }
-        return {0.0f, 0.0f};
+        return {{0.0f, 0.0f}, false};
     };
 
     // Map Inputs
@@ -276,19 +374,20 @@ static void controller_openxr_read(OSContPad *pad) {
     if (getBool(s_actionL)) pad->button |= L_TRIG;
     if (getBool(s_actionR)) pad->button |= R_TRIG;
 
-    // Movement Stick
-    XrVector2f movement = getVec2(s_actionMovement);
-    // Map -1.0..1.0 to -80..80 (approx)
-    pad->stick_x = (s8)(movement.x * 80.0f);
-    pad->stick_y = (s8)(movement.y * 80.0f);
+    // Movement Stick - only update if OpenXR controller is active so vr controllers don't override bluetooth controller with 0
+    Vec2State movement = getVec2(s_actionMovement);
+    if (movement.isActive) {
+        pad->stick_x = (s8)(movement.value.x * 80.0f);
+        pad->stick_y = (s8)(movement.value.y * 80.0f);
+    }
 
     // Camera Stick -> C-Buttons
-    XrVector2f camera = getVec2(s_actionCamera);
+    Vec2State camera = getVec2(s_actionCamera);
     float threshold = 0.5f;
-    if (camera.x > threshold) pad->button |= R_CBUTTONS;
-    if (camera.x < -threshold) pad->button |= L_CBUTTONS;
-    if (camera.y > threshold) pad->button |= U_CBUTTONS;
-    if (camera.y < -threshold) pad->button |= D_CBUTTONS;
+    if (camera.value.x > threshold) pad->button |= R_CBUTTONS;
+    if (camera.value.x < -threshold) pad->button |= L_CBUTTONS;
+    if (camera.value.y > threshold) pad->button |= U_CBUTTONS;
+    if (camera.value.y < -threshold) pad->button |= D_CBUTTONS;
 
     // Handle Y button for keyboard toggle
     static bool s_lastToggleState = false;
@@ -332,8 +431,42 @@ static void controller_openxr_read(OSContPad *pad) {
             }
         };
 
+        // Send controller input (ray-based)
         sendInput(s_spacePoseLeft, s_actionSelectLeft, XR_VIRTUAL_KEYBOARD_INPUT_SOURCE_CONTROLLER_RAY_LEFT_META);
         sendInput(s_spacePoseRight, s_actionSelectRight, XR_VIRTUAL_KEYBOARD_INPUT_SOURCE_CONTROLLER_RAY_RIGHT_META);
+        
+        // Send hand tracking input (using direct hand tracking API)
+        if (xrLocateHandJointsEXT) {
+            // Left hand
+            if (update_hand_tracking(s_handTrackerLeft, s_keyboardReferenceSpace, time, &s_locationsLeft, &s_aimStateLeft)) {
+                bool pinching = (s_aimStateLeft.status & XR_HAND_TRACKING_AIM_INDEX_PINCHING_BIT_FB) != 0;
+                XrPosef aimPose = s_aimStateLeft.aimPose;
+                XrPosef palmPose = s_jointLocationsLeft[XR_HAND_JOINT_PALM_EXT].pose;
+                
+                OpenXRKeyboard::GetInstance().SendInput(
+                    s_keyboardReferenceSpace, 
+                    XR_VIRTUAL_KEYBOARD_INPUT_SOURCE_CONTROLLER_RAY_LEFT_META, 
+                    aimPose, 
+                    pinching, 
+                    &palmPose
+                );
+            }
+            
+            // Right hand
+            if (update_hand_tracking(s_handTrackerRight, s_keyboardReferenceSpace, time, &s_locationsRight, &s_aimStateRight)) {
+                bool pinching = (s_aimStateRight.status & XR_HAND_TRACKING_AIM_INDEX_PINCHING_BIT_FB) != 0;
+                XrPosef aimPose = s_aimStateRight.aimPose;
+                XrPosef palmPose = s_jointLocationsRight[XR_HAND_JOINT_PALM_EXT].pose;
+                
+                OpenXRKeyboard::GetInstance().SendInput(
+                    s_keyboardReferenceSpace, 
+                    XR_VIRTUAL_KEYBOARD_INPUT_SOURCE_CONTROLLER_RAY_RIGHT_META, 
+                    aimPose, 
+                    pinching, 
+                    &palmPose
+                );
+            }
+        }
     }
 }
 
@@ -355,6 +488,18 @@ static void controller_openxr_bind(void) {
 
 static void controller_openxr_shutdown(void) {
     if (!s_initialized) return;
+    
+    // Destroy hand trackers
+    if (xrDestroyHandTrackerEXT) {
+        if (s_handTrackerLeft != XR_NULL_HANDLE) {
+            xrDestroyHandTrackerEXT(s_handTrackerLeft);
+            s_handTrackerLeft = XR_NULL_HANDLE;
+        }
+        if (s_handTrackerRight != XR_NULL_HANDLE) {
+            xrDestroyHandTrackerEXT(s_handTrackerRight);
+            s_handTrackerRight = XR_NULL_HANDLE;
+        }
+    }
     
     // OpenXR resources are generally cleaned up by destroying the instance/session
     // But we could destroy actions here if we wanted to be pedantic.

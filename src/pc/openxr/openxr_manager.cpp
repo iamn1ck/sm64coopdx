@@ -309,7 +309,6 @@ int openxr_update(void)
                     reinterpret_cast<XrEventDataVirtualKeyboardCommitTextMETA*>(&eventData);
                 std::cout << "Virtual keyboard commit text: " << commitEvent->text << std::endl;
                 
-                // Send text input event to SDL
                 SDL_Event event;
                 event.type = SDL_TEXTINPUT;
                 event.text.timestamp = SDL_GetTicks();
@@ -324,10 +323,8 @@ int openxr_update(void)
                     reinterpret_cast<XrEventDataVirtualKeyboardBackspaceMETA*>(&eventData);
                 std::cout << "Virtual keyboard backspace" << std::endl;
                 
-                // Send backspace key press and release to SDL
                 SDL_Event event;
-                
-                // Key down
+
                 event.type = SDL_KEYDOWN;
                 event.key.timestamp = SDL_GetTicks();
                 event.key.windowID = 0;
@@ -338,7 +335,6 @@ int openxr_update(void)
                 event.key.keysym.mod = KMOD_NONE;
                 SDL_PushEvent(&event);
                 
-                // Key up
                 event.type = SDL_KEYUP;
                 event.key.timestamp = SDL_GetTicks();
                 event.key.windowID = 0;
@@ -351,10 +347,8 @@ int openxr_update(void)
                 break;
             }
             case XR_TYPE_EVENT_DATA_VIRTUAL_KEYBOARD_ENTER_META: {
-                // Send Enter key press and release to SDL as fallback
                 SDL_Event event;
                 
-                // Key down
                 event.type = SDL_KEYDOWN;
                 event.key.timestamp = SDL_GetTicks();
                 event.key.windowID = 0;
@@ -365,7 +359,6 @@ int openxr_update(void)
                 event.key.keysym.mod = KMOD_NONE;
                 SDL_PushEvent(&event);
                 
-                // Key up
                 event.type = SDL_KEYUP;
                 event.key.timestamp = SDL_GetTicks();
                 event.key.windowID = 0;

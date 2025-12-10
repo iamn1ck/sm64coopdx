@@ -28,7 +28,9 @@ static const char* const extensionNames[] = {
     "XR_KHR_vulkan_enable2",
     "XR_EXT_debug_utils",
     "XR_META_virtual_keyboard",
-    "XR_FB_render_model"
+    "XR_FB_render_model",
+    "XR_EXT_hand_tracking",
+    "XR_FB_hand_tracking_aim"
 };
 
 PFN_xrVoidFunction getXRFunction(XrInstance instance, const char* name)
