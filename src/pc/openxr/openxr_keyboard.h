@@ -226,15 +226,6 @@ private:
     
     bool CreateRayResources();
     void RenderRays(const float* viewMatrix, const float* projMatrix);
-    
-    // Cube rendering for hand visualization
-    GLuint cubeShaderProgram_ = 0;
-    GLuint cubeVao_ = 0;
-    GLuint cubeVbo_ = 0;
-    GLuint cubeEbo_ = 0;
-    
-    bool CreateCubeResources();
-    void RenderCube(const float* viewMatrix, const float* projMatrix);
 };
 
 #endif // __cplusplus
