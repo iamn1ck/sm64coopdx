@@ -499,25 +499,33 @@ void OpenXRKeyboard::Update(XrSpace currentSpace, XrTime predictedDisplayTime, c
     if (recenterRequested_ && currentSpace != XR_NULL_HANDLE) {
         const XrQuaternionf& q = headPose.orientation;
         
-        // Extract yaw
-        float siny_cosp = 2.0f * (q.w * q.z + q.x * q.y);
-        float cosy_cosp = 1.0f - 2.0f * (q.y * q.y + q.z * q.z);
-        float yaw = std::atan2(siny_cosp, cosy_cosp);
+        float forwardX = 2.0f * (q.x * q.z + q.y * q.w);
+        float forwardY = 2.0f * (q.y * q.z - q.x * q.w);
+        float forwardZ = 1.0f - 2.0f * (q.x * q.x + q.y * q.y);
         
-        // Create rotation quaternion from yaw only (to keep keyboard upright)
+        float horizX = forwardX;
+        float horizZ = forwardZ;
+        
+        float horizLen = std::sqrt(horizX * horizX + horizZ * horizZ);
+        if (horizLen > 0.0001f) {
+            horizX /= horizLen;
+            horizZ /= horizLen;
+        }
+
+        float yaw = std::atan2(horizX, -horizZ) + M_PI / 2.0f;
+
         float halfYaw = yaw * 0.5f;
         float sinHalfYaw = std::sin(halfYaw);
         float cosHalfYaw = std::cos(halfYaw);
         
         XrQuaternionf keyboardOrientation = {0.0f, sinHalfYaw, 0.0f, cosHalfYaw};
-        
-        // Calculate position: head position + 1.0m * forward(yaw)
+
         float dist = 1.0f;
         XrVector3f keyboardPosition;
         keyboardPosition.x = headPose.position.x - dist * std::sin(yaw);
         keyboardPosition.y = headPose.position.y - 0.2f; // 20cm below head height
         keyboardPosition.z = headPose.position.z - dist * std::cos(yaw);
-        
+    
         XrVirtualKeyboardLocationInfoMETA locationInfo{XR_TYPE_VIRTUAL_KEYBOARD_LOCATION_INFO_META};
         locationInfo.locationType = XR_VIRTUAL_KEYBOARD_LOCATION_TYPE_CUSTOM_META;
         locationInfo.space = currentSpace;
