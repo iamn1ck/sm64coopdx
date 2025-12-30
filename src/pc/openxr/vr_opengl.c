@@ -461,8 +461,8 @@ void vr_opengl_render_djui_to_djui_quad(void)
     struct GfxDimensions saved_dimensions = gfx_current_dimensions;
     
     // Use DJUI's native widescreen resolution for layout calculations
-    #define DJUI_WIDTH 320
-    #define DJUI_HEIGHT 180
+    #define DJUI_WIDTH 1280
+    #define DJUI_HEIGHT 720
     gfx_current_dimensions.width = DJUI_WIDTH;
     gfx_current_dimensions.height = DJUI_HEIGHT;
     gfx_current_dimensions.aspect_ratio = (float)DJUI_WIDTH / (float)DJUI_HEIGHT;
@@ -472,9 +472,6 @@ void vr_opengl_render_djui_to_djui_quad(void)
     // Render DJUI commands to the display list
     djui_render();
     
-    // Restore dimensions
-    gfx_current_dimensions = saved_dimensions;
-    
     // Terminate the temporary display list
     gSPEndDisplayList(gDisplayListHead++);
     
@@ -483,6 +480,9 @@ void vr_opengl_render_djui_to_djui_quad(void)
     // and without any VR perspective overrides (since we're not in the main render loop)
     // Use the immediate version to avoid triggering a full VR frame (WaitFrame/BeginFrame)
     gfx_run_commands_immediate(saved_head);
+
+    // Restore dimensions
+    gfx_current_dimensions = saved_dimensions;
     
     // Restore the display list head so these commands are effectively removed from the main DL
     // This prevents them from being rendered again into the eye buffers
