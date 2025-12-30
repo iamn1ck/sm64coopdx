@@ -454,9 +454,6 @@ void vr_opengl_render_djui_to_djui_quad(void)
     // Save the current display list head
     Gfx* saved_head = gDisplayListHead;
     
-    // Temporarily set gfx_current_dimensions to DJUI's widescreen resolution (320x180, 16:9)
-    // while the viewport remains at the actual framebuffer size (640x360)
-    // This causes DJUI to render at native widescreen resolution then GPU upscales it
     extern struct GfxDimensions gfx_current_dimensions;
     struct GfxDimensions saved_dimensions = gfx_current_dimensions;
     
