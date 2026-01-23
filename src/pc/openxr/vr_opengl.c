@@ -1,7 +1,6 @@
 #include "vr_opengl.h"
 #include "vr_renderer.h"
 #include "openxr_keyboard.h"
-#include "vr_copy.h"
 #include "pc/gfx/gfx_pc.h"
 #include "game/game_init.h"
 
@@ -24,10 +23,12 @@
 
 #define GL_GLEXT_PROTOTYPES 1
 
+
 #ifdef WAPI_SDL2
 # include <SDL2/SDL.h>
 # ifdef USE_GLES
 #  include <SDL2/SDL_opengles2.h>
+#  include <GLES3/gl3.h>  // Need ES 3.0 for glBlitFramebuffer
 # else
 #  include <SDL2/SDL_opengl.h>
 # endif
@@ -37,6 +38,16 @@
 #  include <SDL/SDL_opengl.h>
 # endif
 #endif
+
+// Forward declarations for C++ functions from vr_renderer
+// These are defined in vr_renderer.cpp and declared in vr_renderer.h
+// Using unsigned int instead of GLuint for C compatibility
+extern unsigned int vr_renderer_get_swapchain_texture(int eye);
+
+#ifndef GL_FRAMEBUFFER_SRGB
+#define GL_FRAMEBUFFER_SRGB 0x8DB9
+#endif
+
 
 // VR OpenGL state
 static struct {
@@ -134,9 +145,12 @@ int vr_opengl_init(void)
         // Bind framebuffer
         glBindFramebuffer(GL_FRAMEBUFFER, g_vr_opengl.framebuffers[eye]);
         
-        // Create and attach color texture
+        // Create and attach color texture.
+        // We use GL_SRGB8_ALPHA8 (sRGB) for the source, and GL_RGBA8 (Linear) for the destination swapchain.
+        // This mismatch forces glBlitFramebuffer to decode sRGB -> Linear.
+        // The OpenXR runtime then takes this Linear data and re-encodes it to sRGB for the display.
         glBindTexture(GL_TEXTURE_2D, g_vr_opengl.colorTextures[eye]);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);        
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_SRGB8_ALPHA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -188,7 +202,7 @@ int vr_opengl_init(void)
     
     // Create and attach color texture
     glBindTexture(GL_TEXTURE_2D, g_vr_opengl.quadColorTexture);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, g_vr_opengl.quadWidth, g_vr_opengl.quadHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_SRGB8_ALPHA8, g_vr_opengl.quadWidth, g_vr_opengl.quadHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -230,7 +244,7 @@ int vr_opengl_init(void)
     
     // Create and attach color texture
     glBindTexture(GL_TEXTURE_2D, g_vr_opengl.djuiColorTexture);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, g_vr_opengl.djuiWidth, g_vr_opengl.djuiHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_SRGB8_ALPHA8, g_vr_opengl.djuiWidth, g_vr_opengl.djuiHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -343,6 +357,178 @@ int vr_opengl_begin_eye(int eye)
     return 1;
 }
 
+// Copy the rendered framebuffer to the OpenXR swapchain image
+static void vr_opengl_copy_to_swapchain(int eye)
+{
+    if (!g_vr_opengl.initialized || eye < 0 || eye > 1) {
+        return;
+    }
+    
+    // Get the current swapchain texture for this eye
+    GLuint swapchainTexture = vr_renderer_get_swapchain_texture(eye);
+    
+    if (swapchainTexture == 0) {
+        fprintf(stderr, "Failed to get swapchain texture for eye %d\n", eye);
+        return;
+    }
+    
+    // Save current GL state
+    GLint prevReadFBO, prevDrawFBO;
+    glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &prevReadFBO);
+    glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &prevDrawFBO);
+    
+    // Create a temporary framebuffer for the swapchain texture if needed
+    static GLuint swapchainFBO = 0;
+    if (swapchainFBO == 0) {
+        glGenFramebuffers(1, &swapchainFBO);
+    }
+    
+    // Bind our rendered texture as the read framebuffer
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, g_vr_opengl.framebuffers[eye]);
+    
+    // Bind the swapchain texture as the draw framebuffer
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, swapchainFBO);
+    glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, swapchainTexture, 0);
+    
+    // Check if the swapchain framebuffer is complete
+    GLenum status = glCheckFramebufferStatus(GL_DRAW_FRAMEBUFFER);
+    if (status != GL_FRAMEBUFFER_COMPLETE) {
+        fprintf(stderr, "Swapchain framebuffer incomplete for eye %d: 0x%x\n", eye, status);
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, prevReadFBO);
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, prevDrawFBO);
+        return;
+    }
+    
+    // Copy the framebuffer content (blit operation)
+    // This copies from the game's rendered framebuffer to the OpenXR swapchain
+    uint32_t width = g_vr_opengl.width[eye];
+    uint32_t height = g_vr_opengl.height[eye];
+    
+    // Enable sRGB conversion for the blit (sRGB -> Linear decode)
+    glEnable(GL_FRAMEBUFFER_SRGB);
+    
+    glBlitFramebuffer(
+        0, 0, width, height,  // Source rectangle
+        0, 0, width, height,  // Destination rectangle
+        GL_COLOR_BUFFER_BIT,  // Copy color buffer
+        GL_NEAREST            // Use nearest filtering
+    );
+    
+    glDisable(GL_FRAMEBUFFER_SRGB);
+    
+    // Restore previous framebuffer bindings
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, prevReadFBO);
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, prevDrawFBO);
+    
+    // Ensure the copy is complete before releasing the swapchain image
+    glFlush();
+}
+
+// Copy the HUD quad framebuffer to the OpenXR swapchain image
+static void vr_opengl_copy_quad_to_swapchain(void)
+{
+    if (!g_vr_opengl.initialized) {
+        return;
+    }
+    
+    // Get the current quad swapchain texture
+    GLuint swapchainTexture = vr_renderer_get_quad_swapchain_texture();
+    
+    if (swapchainTexture == 0) {
+        return;  // Quad swapchain not available
+    }
+    
+    // Save current GL state
+    GLint prevReadFBO, prevDrawFBO;
+    glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &prevReadFBO);
+    glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &prevDrawFBO);
+    
+    // Create a temporary framebuffer for the swapchain texture if needed
+    static GLuint quadSwapchainFBO = 0;
+    if (quadSwapchainFBO == 0) {
+        glGenFramebuffers(1, &quadSwapchainFBO);
+    }
+    
+    // Bind our rendered quad texture as the read framebuffer
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, g_vr_opengl.quadFramebuffer);
+    
+    // Bind the swapchain texture as the draw framebuffer
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, quadSwapchainFBO);
+    glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, swapchainTexture, 0);
+    
+    // Copy the framebuffer content
+    glEnable(GL_FRAMEBUFFER_SRGB);
+    glBlitFramebuffer(
+        0, 0, g_vr_opengl.quadWidth, g_vr_opengl.quadHeight,
+        0, 0, g_vr_opengl.quadWidth, g_vr_opengl.quadHeight,
+        GL_COLOR_BUFFER_BIT,
+        GL_NEAREST
+    );
+    glDisable(GL_FRAMEBUFFER_SRGB);
+    
+    // Restore previous framebuffer bindings
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, prevReadFBO);
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, prevDrawFBO);
+    
+    glFlush();
+}
+
+// Copy the DJUI quad framebuffer to the OpenXR swapchain image
+static void vr_opengl_copy_djui_to_swapchain(void)
+{
+    if (!g_vr_opengl.initialized) {
+        return;
+    }
+    
+    // Get the current DJUI swapchain texture
+    GLuint swapchainTexture = vr_renderer_get_djui_swapchain_texture();
+    
+    if (swapchainTexture == 0) {
+        return;  // DJUI swapchain not available
+    }
+    
+    // Save current GL state
+    GLint prevReadFBO, prevDrawFBO;
+    glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &prevReadFBO);
+    glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &prevDrawFBO);
+    
+    // Create a temporary framebuffer for the swapchain texture if needed
+    static GLuint djuiSwapchainFBO = 0;
+    if (djuiSwapchainFBO == 0) {
+        glGenFramebuffers(1, &djuiSwapchainFBO);
+    }
+    
+    // Bind our rendered DJUI texture as the read framebuffer
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, g_vr_opengl.djuiFramebuffer);
+    
+    // Bind the swapchain texture as the draw framebuffer
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, djuiSwapchainFBO);
+    glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, swapchainTexture, 0);
+    
+    // Copy the framebuffer content
+    glEnable(GL_FRAMEBUFFER_SRGB);
+    glBlitFramebuffer(
+        0, 0, g_vr_opengl.djuiWidth, g_vr_opengl.djuiHeight,
+        0, 0, g_vr_opengl.djuiWidth, g_vr_opengl.djuiHeight,
+        GL_COLOR_BUFFER_BIT,
+        GL_NEAREST
+    );
+    glDisable(GL_FRAMEBUFFER_SRGB);
+    
+    // Restore previous framebuffer bindings
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, prevReadFBO);
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, prevDrawFBO);
+    
+    glFlush();
+}
+
+// Public function to copy quad layers to swapchains
+void vr_opengl_copy_quads_to_swapchains(void)
+{
+    vr_opengl_copy_quad_to_swapchain();
+    vr_opengl_copy_djui_to_swapchain();
+}
+
 void vr_opengl_end_eye(int eye)
 {
     if (!g_vr_opengl.initialized || g_vr_opengl.activeEye != eye) {
@@ -354,16 +540,8 @@ void vr_opengl_end_eye(int eye)
         openxr_render_keyboard(eye);
     }
     
-    // Copy framebuffer to Vulkan swapchain image
-    if (vr_copy_is_initialized()) {
-        if (!vr_copy_framebuffer_to_swapchain(eye)) {
-            static int warned = 0;
-            if (!warned) {
-                fprintf(stderr, "Warning: Failed to copy framebuffer to swapchain for eye %d\n", eye);
-                warned = 1;
-            }
-        }
-    }
+    // Copy the rendered framebuffer to the OpenXR swapchain
+    vr_opengl_copy_to_swapchain(eye);
     
     // Restore previous framebuffer
     glBindFramebuffer(GL_FRAMEBUFFER, g_vr_opengl.previousFramebuffer);
@@ -454,12 +632,15 @@ void vr_opengl_render_djui_to_djui_quad(void)
     // Save the current display list head
     Gfx* saved_head = gDisplayListHead;
     
+    // Temporarily set gfx_current_dimensions to DJUI's widescreen resolution (320x180, 16:9)
+    // while the viewport remains at the actual framebuffer size (640x360)
+    // This causes DJUI to render at native widescreen resolution then GPU upscales it
     extern struct GfxDimensions gfx_current_dimensions;
     struct GfxDimensions saved_dimensions = gfx_current_dimensions;
     
     // Use DJUI's native widescreen resolution for layout calculations
-    #define DJUI_WIDTH 1280
-    #define DJUI_HEIGHT 720
+    #define DJUI_WIDTH 320
+    #define DJUI_HEIGHT 180
     gfx_current_dimensions.width = DJUI_WIDTH;
     gfx_current_dimensions.height = DJUI_HEIGHT;
     gfx_current_dimensions.aspect_ratio = (float)DJUI_WIDTH / (float)DJUI_HEIGHT;
@@ -469,6 +650,9 @@ void vr_opengl_render_djui_to_djui_quad(void)
     // Render DJUI commands to the display list
     djui_render();
     
+    // Restore dimensions
+    gfx_current_dimensions = saved_dimensions;
+    
     // Terminate the temporary display list
     gSPEndDisplayList(gDisplayListHead++);
     
@@ -477,18 +661,10 @@ void vr_opengl_render_djui_to_djui_quad(void)
     // and without any VR perspective overrides (since we're not in the main render loop)
     // Use the immediate version to avoid triggering a full VR frame (WaitFrame/BeginFrame)
     gfx_run_commands_immediate(saved_head);
-
-    // Restore dimensions
-    gfx_current_dimensions = saved_dimensions;
     
     // Restore the display list head so these commands are effectively removed from the main DL
     // This prevents them from being rendered again into the eye buffers
     gDisplayListHead = saved_head;
-    
-    // Copy DJUI framebuffer to Vulkan swapchain
-    if (vr_copy_is_initialized()) {
-        vr_copy_djui_to_swapchain();
-    }
     
     // Restore state
     if (!wasBlend) glDisable(GL_BLEND);

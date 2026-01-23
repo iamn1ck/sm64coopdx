@@ -74,12 +74,24 @@ int createOpenXRSwapchains(
         return 0;
     }
     
-    // Choose format - prefer SRGB for color accuracy
+    // Choose format - prefer RGBA8 (linear)
+    // We use RGBA8 (Linear) for the swapchain, but our source framebuffer is SRGB8_ALPHA8.
+    // The blit operation will decode sRGB -> Linear.
+    // OpenXR runtime treats RGBA8 as Linear and will re-encode Linear -> sRGB for display.
     int64_t chosenFormat = formats[0];
     for (int64_t format : formats) {
-        if (format == VK_FORMAT_R8G8B8A8_SRGB || format == VK_FORMAT_B8G8R8A8_SRGB) {
+        if (format == GL_RGBA8) {
             chosenFormat = format;
             break;
+        }
+    }
+    // Fallback to SRGB if RGBA8 not available
+    if (chosenFormat == formats[0]) {
+        for (int64_t format : formats) {
+            if (format == GL_SRGB8_ALPHA8) {
+                chosenFormat = format;
+                break;
+            }
         }
     }
     
@@ -93,7 +105,7 @@ int createOpenXRSwapchains(
             return 0;
         }
         
-        sc->format = (VkFormat)chosenFormat;
+        sc->format = (GLenum)chosenFormat;
         sc->width = configViews[i].recommendedImageRectWidth;
         sc->height = configViews[i].recommendedImageRectHeight;
         
@@ -133,9 +145,9 @@ int createOpenXRSwapchains(
             return 0;
         }
         
-        vector<XrSwapchainImageVulkanKHR> swapchainImages(imageCount);
+        vector<XrSwapchainImageOpenGLESKHR> swapchainImages(imageCount);
         for (uint32_t j = 0; j < imageCount; j++) {
-            swapchainImages[j].type = XR_TYPE_SWAPCHAIN_IMAGE_VULKAN_KHR;
+            swapchainImages[j].type = XR_TYPE_SWAPCHAIN_IMAGE_OPENGL_ES_KHR;
             swapchainImages[j].next = nullptr;
         }
         
@@ -154,7 +166,7 @@ int createOpenXRSwapchains(
         }
         
         sc->imageCount = imageCount;
-        sc->images = (VkImage*)calloc(imageCount, sizeof(VkImage));
+        sc->images = (GLuint*)calloc(imageCount, sizeof(GLuint));
         if (!sc->images) {
             cerr << "Failed to allocate image array" << endl;
             xrDestroySwapchain(sc->swapchain);
@@ -205,12 +217,21 @@ int createQuadSwapchain(
         return 0;
     }
     
-    // Choose format - prefer SRGB for color accuracy
+    // Choose format - prefer RGBA8 (linear)
     int64_t chosenFormat = formats[0];
     for (int64_t format : formats) {
-        if (format == VK_FORMAT_R8G8B8A8_SRGB || format == VK_FORMAT_B8G8R8A8_SRGB) {
+        if (format == GL_RGBA8) {
             chosenFormat = format;
             break;
+        }
+    }
+    // Fallback to SRGB if RGBA8 not available
+    if (chosenFormat == formats[0]) {
+        for (int64_t format : formats) {
+            if (format == GL_SRGB8_ALPHA8) {
+                chosenFormat = format;
+                break;
+            }
         }
     }
     
@@ -222,7 +243,7 @@ int createQuadSwapchain(
         return 0;
     }
     
-    sc->format = (VkFormat)chosenFormat;
+    sc->format = (GLenum)chosenFormat;
     sc->width = width;
     sc->height = height;
     
@@ -261,9 +282,9 @@ int createQuadSwapchain(
         return 0;
     }
     
-    vector<XrSwapchainImageVulkanKHR> swapchainImages(imageCount);
+    vector<XrSwapchainImageOpenGLESKHR> swapchainImages(imageCount);
     for (uint32_t j = 0; j < imageCount; j++) {
-        swapchainImages[j].type = XR_TYPE_SWAPCHAIN_IMAGE_VULKAN_KHR;
+        swapchainImages[j].type = XR_TYPE_SWAPCHAIN_IMAGE_OPENGL_ES_KHR;
         swapchainImages[j].next = nullptr;
     }
     
@@ -282,7 +303,7 @@ int createQuadSwapchain(
     }
     
     sc->imageCount = imageCount;
-    sc->images = (VkImage*)calloc(imageCount, sizeof(VkImage));
+    sc->images = (GLuint*)calloc(imageCount, sizeof(GLuint));
     if (!sc->images) {
         cerr << "Failed to allocate image array" << endl;
         xrDestroySwapchain(sc->swapchain);
