@@ -43,7 +43,13 @@ unsigned int vr_opengl_get_quad_framebuffer(void);
 // Get the DJUI framebuffer
 unsigned int vr_opengl_get_djui_framebuffer(void);
 
-// Copy quad layer framebuffers to OpenXR swapchains
+// Prepare the quad layer framebuffer by attaching the current swapchain texture
+void vr_opengl_prepare_quad_layer(void);
+
+// Prepare the DJUI layer framebuffer by attaching the current swapchain texture
+void vr_opengl_prepare_djui_layer(void);
+
+// Copy quad layer framebuffers to OpenXR swapchains - DEPRECATED
 // Call this after rendering HUD and DJUI layers
 void vr_opengl_copy_quads_to_swapchains(void);
 

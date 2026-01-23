@@ -74,21 +74,18 @@ int createOpenXRSwapchains(
         return 0;
     }
     
-    // Choose format - prefer RGBA8 (linear)
-    // We use RGBA8 (Linear) for the swapchain, but our source framebuffer is SRGB8_ALPHA8.
-    // The blit operation will decode sRGB -> Linear.
-    // OpenXR runtime treats RGBA8 as Linear and will re-encode Linear -> sRGB for display.
+    // Choose format - prefer SRGB8_ALPHA8 (sRGB)
     int64_t chosenFormat = formats[0];
     for (int64_t format : formats) {
-        if (format == GL_RGBA8) {
+        if (format == GL_SRGB8_ALPHA8) {
             chosenFormat = format;
             break;
         }
     }
-    // Fallback to SRGB if RGBA8 not available
+    // Fallback to RGBA8 if SRGB8_ALPHA8 not available
     if (chosenFormat == formats[0]) {
         for (int64_t format : formats) {
-            if (format == GL_SRGB8_ALPHA8) {
+            if (format == GL_RGBA8) {
                 chosenFormat = format;
                 break;
             }
@@ -217,18 +214,18 @@ int createQuadSwapchain(
         return 0;
     }
     
-    // Choose format - prefer RGBA8 (linear)
+    // Choose format - prefer SRGB8_ALPHA8 (sRGB)
     int64_t chosenFormat = formats[0];
     for (int64_t format : formats) {
-        if (format == GL_RGBA8) {
+        if (format == GL_SRGB8_ALPHA8) {
             chosenFormat = format;
             break;
         }
     }
-    // Fallback to SRGB if RGBA8 not available
+    // Fallback to RGBA8 if SRGB8_ALPHA8 not available
     if (chosenFormat == formats[0]) {
         for (int64_t format : formats) {
-            if (format == GL_SRGB8_ALPHA8) {
+            if (format == GL_RGBA8) {
                 chosenFormat = format;
                 break;
             }

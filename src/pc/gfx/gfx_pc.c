@@ -2176,14 +2176,15 @@ void gfx_run(Gfx *commands) {
         } else {
             // Render game HUD to quad layer overlay
             extern void vr_render_hud_to_quad(void);
+            
+            // Prepare quad layer (attach swapchain texture) before rendering
+            vr_opengl_prepare_quad_layer();
+            
             vr_render_hud_to_quad();
             
             extern void vr_opengl_render_djui_to_djui_quad(void);
+            // Note: vr_opengl_render_djui_to_djui_quad calls vr_opengl_prepare_djui_layer internally
             vr_opengl_render_djui_to_djui_quad();
-            
-            // Copy rendered quad layers to OpenXR swapchains
-            extern void vr_opengl_copy_quads_to_swapchains(void);
-            vr_opengl_copy_quads_to_swapchains();
         }
 
         // Restore original dimensions for desktop rendering
