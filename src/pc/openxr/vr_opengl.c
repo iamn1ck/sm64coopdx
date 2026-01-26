@@ -229,23 +229,12 @@ void vr_opengl_shutdown(void)
         g_vr_opengl.framebuffers[1] = 0;
     }
     
-    // Delete textures - NO persistent colors anymore
-    /*if (g_vr_opengl.colorTextures[0] != 0 || g_vr_opengl.colorTextures[1] != 0) {
-        glDeleteTextures(2, g_vr_opengl.colorTextures);
-        g_vr_opengl.colorTextures[0] = 0;
-        g_vr_opengl.colorTextures[1] = 0;
-    }*/
-    
     // Delete depth renderbuffers
     if (g_vr_opengl.depthRenderbuffers[0] != 0 || g_vr_opengl.depthRenderbuffers[1] != 0) {
         glDeleteRenderbuffers(2, g_vr_opengl.depthRenderbuffers);
         g_vr_opengl.depthRenderbuffers[0] = 0;
         g_vr_opengl.depthRenderbuffers[1] = 0;
     }
-    
-    // Textures depend on swapchain now, nothing to delete here explicitly for color textures
-    // if (g_vr_opengl.quadColorTexture != 0) ... removed
-    // if (g_vr_opengl.djuiColorTexture != 0) ... removed
     
     g_vr_opengl.initialized = 0;
     printf("VR OpenGL integration shutdown complete\n");
@@ -353,13 +342,6 @@ void vr_opengl_prepare_djui_layer(void)
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
-// Public function to copy quad layers to swapchains - DEPRECATED/REMOVED
-// Kept empty to satisfy linker temporarily if called elsewhere, but we will remove calls.
-void vr_opengl_copy_quads_to_swapchains(void)
-{
-    // No-op
-}
-
 unsigned int vr_opengl_get_framebuffer(int eye)
 {
     if (!g_vr_opengl.initialized || eye < 0 || eye > 1) {
@@ -459,8 +441,8 @@ void vr_opengl_render_djui_to_djui_quad(void)
     struct GfxDimensions saved_dimensions = gfx_current_dimensions;
     
     // Use DJUI's native widescreen resolution for layout calculations
-    #define DJUI_WIDTH 320
-    #define DJUI_HEIGHT 180
+    #define DJUI_WIDTH 1280
+    #define DJUI_HEIGHT 720
     gfx_current_dimensions.width = DJUI_WIDTH;
     gfx_current_dimensions.height = DJUI_HEIGHT;
     gfx_current_dimensions.aspect_ratio = (float)DJUI_WIDTH / (float)DJUI_HEIGHT;
@@ -482,6 +464,8 @@ void vr_opengl_render_djui_to_djui_quad(void)
     // Use the immediate version to avoid triggering a full VR frame (WaitFrame/BeginFrame)
     gfx_run_commands_immediate(saved_head);
     
+    gfx_current_dimensions = saved_dimensions;
+
     // Restore the display list head so these commands are effectively removed from the main DL
     // This prevents them from being rendered again into the eye buffers
     gDisplayListHead = saved_head;

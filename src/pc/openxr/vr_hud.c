@@ -93,6 +93,7 @@ void vr_render_hud_to_quad(void) {
     uint32_t quadWidth, quadHeight;
     vr_renderer_get_quad_dimensions(&quadWidth, &quadHeight);
     glViewport(0, 0, quadWidth, quadHeight);
+
     
     // Set 2D render state for HUD
     glDisable(GL_DEPTH_TEST);
@@ -146,6 +147,7 @@ void vr_render_hud_to_quad(void) {
     
     // Restore the display list head
     gDisplayListHead = saved_head;
+
     
     // Restore OpenGL state
     if (!wasBlend) glDisable(GL_BLEND);

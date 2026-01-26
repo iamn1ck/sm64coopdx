@@ -49,10 +49,6 @@ void vr_opengl_prepare_quad_layer(void);
 // Prepare the DJUI layer framebuffer by attaching the current swapchain texture
 void vr_opengl_prepare_djui_layer(void);
 
-// Copy quad layer framebuffers to OpenXR swapchains - DEPRECATED
-// Call this after rendering HUD and DJUI layers
-void vr_opengl_copy_quads_to_swapchains(void);
-
 // This binds the DJUI framebuffer, clears it, and copies to Vulkan swapchain
 void vr_opengl_render_djui_to_djui_quad(void);
 

@@ -27,7 +27,8 @@ static struct {
     // OpenXR handles (from manager)
     XrInstance xrInstance;
     XrSession xrSession;
-    XrSpace xrSpace;
+    XrSpace xrSpace;        // World/stage space
+    XrSpace xrViewSpace;    // View space for head-locked layers
     XrSystemId xrSystemId;
     
     // Frame state
@@ -48,6 +49,7 @@ static struct {
     nullptr,
     nullptr,
     nullptr,
+    XR_NULL_HANDLE,
     XR_NULL_HANDLE,
     XR_NULL_HANDLE,
     XR_NULL_HANDLE,
@@ -89,6 +91,19 @@ int vr_renderer_init(void)
         return 0;
     }
     
+    // Create VIEW reference space for head-locked layers
+    XrReferenceSpaceCreateInfo viewSpaceCreateInfo{};
+    viewSpaceCreateInfo.type = XR_TYPE_REFERENCE_SPACE_CREATE_INFO;
+    viewSpaceCreateInfo.referenceSpaceType = XR_REFERENCE_SPACE_TYPE_VIEW;
+    viewSpaceCreateInfo.poseInReferenceSpace = {{0.0f, 0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 0.0f}};
+    
+    XrResult result = xrCreateReferenceSpace(g_vr_renderer.xrSession, &viewSpaceCreateInfo, &g_vr_renderer.xrViewSpace);
+    if (result != XR_SUCCESS) {
+        std::cerr << "Failed to create VIEW reference space: " << result;
+        return 0;
+    }
+    std::cout << "Created VIEW reference space for head-locked layers";
+    
     // Create swapchains
     if (!createOpenXRSwapchains(
             g_vr_renderer.xrInstance,
@@ -100,12 +115,14 @@ int vr_renderer_init(void)
         return 0;
     }
 
+    // use a resolution with the same aspect ratio as the left eye with some padding  2064x2208
+
     // Create quad swapchain for HUD layer (fixed size for now, e.g., 1280x720)
     if (!createQuadSwapchain(
             g_vr_renderer.xrInstance,
             g_vr_renderer.xrSystemId,
             g_vr_renderer.xrSession,
-            1280, 720,
+            1600, 1400,
             &g_vr_renderer.quadSwapchain)) {
         std::cerr << "Failed to create OpenXR HUD quad swapchain";
         return 0;
@@ -292,70 +309,52 @@ int vr_renderer_end_frame(void)
     projectionLayer.viewCount = 2;
     projectionLayer.views = projectionViews;
     
-    // Get the head pose from the first eye view
-    XrPosef headPose = g_vr_renderer.views[0].pose;
     
-    // Calculate forward direction from head orientation quaternion
-    // In OpenXR: +X right, +Y up, +Z backward (toward viewer), so forward is -Z
-    XrQuaternionf& q = headPose.orientation;
-    
-    // Extract the -Z (forward) direction from the rotation matrix
-    // The third column of a rotation matrix is the Z-axis direction
-    // For -Z (forward), we use: -[2(xz-wy), 2(yz+wx), 1-2(x²+y²)]
-    float forward_x = -2.0f * (q.x * q.z - q.w * q.y);
-    float forward_y = -2.0f * (q.y * q.z + q.w * q.x);
-    float forward_z = -(1.0f - 2.0f * (q.x * q.x + q.y * q.y));
-    
-    // Normalize the forward vector
-    float length = sqrtf(forward_x * forward_x + forward_y * forward_y + forward_z * forward_z);
-    if (length > 0.0f) {
-        forward_x /= length;
-        forward_y /= length;
-        forward_z /= length;
-    }
-    
-    // Create HUD quad layer positioned 1 meter in front of head
+    // Create HUD quad layer - HEAD-LOCKED (uses VIEW space)
     XrCompositionLayerQuad hudLayer{};
     hudLayer.type = XR_TYPE_COMPOSITION_LAYER_QUAD;
     hudLayer.layerFlags = XR_COMPOSITION_LAYER_BLEND_TEXTURE_SOURCE_ALPHA_BIT;  // Enable alpha blending
-    hudLayer.space = g_vr_renderer.xrSpace;
+    hudLayer.space = g_vr_renderer.xrViewSpace;  // Use VIEW space for head-locking
     hudLayer.eyeVisibility = XR_EYE_VISIBILITY_BOTH;
     
-    // Position HUD 1.0 meter in front of head along forward direction
+    // Position HUD 1.0 meter forward in VIEW space (head-locked)
+    // In VIEW space, -Z is forward, so we use negative Z
     float hud_distance = 1.0f;
-    hudLayer.pose.position.x = headPose.position.x + forward_x * hud_distance;
-    hudLayer.pose.position.y = headPose.position.y + forward_y * hud_distance;
-    hudLayer.pose.position.z = headPose.position.z + forward_z * hud_distance;
+    hudLayer.pose.position.x = 0.0f;
+    hudLayer.pose.position.y = -0.2f;  // Move down 0.2 meters, feels more centered
+    hudLayer.pose.position.z = -hud_distance;  // Forward is -Z in VIEW space
     
-    // Orient HUD to face the head (same orientation as head)
-    hudLayer.pose.orientation = headPose.orientation;
+    // Identity orientation (no rotation needed in VIEW space)
+    hudLayer.pose.orientation = {0.0f, 0.0f, 0.0f, 1.0f};
     
-    // Size: 0.8m wide x 0.45m tall (16:9 aspect ratio)
-    hudLayer.size = {0.8f, 0.45f};
+    // Size: 1.6m wide x 0.9m tall (16:9 aspect ratio) - doubled for better visibility
+    hudLayer.size = {1.6f, 1.4f};
     
     hudLayer.subImage.swapchain = g_vr_renderer.quadSwapchain->swapchain;
     hudLayer.subImage.imageRect.offset = {0, 0};
     hudLayer.subImage.imageRect.extent = {(int32_t)g_vr_renderer.quadSwapchain->width, (int32_t)g_vr_renderer.quadSwapchain->height};
     hudLayer.subImage.imageArrayIndex = 0;
+
     
-    // Create DJUI quad layer positioned 1.1 meters in front of head
+    // Create DJUI quad layer - HEAD-LOCKED (uses VIEW space)
     XrCompositionLayerQuad djuiLayer{};
     djuiLayer.type = XR_TYPE_COMPOSITION_LAYER_QUAD;
     djuiLayer.layerFlags = XR_COMPOSITION_LAYER_BLEND_TEXTURE_SOURCE_ALPHA_BIT;  // Enable alpha blending
-    djuiLayer.space = g_vr_renderer.xrSpace;
+    djuiLayer.space = g_vr_renderer.xrViewSpace;  // Use VIEW space for head-locking
     djuiLayer.eyeVisibility = XR_EYE_VISIBILITY_BOTH;
     
-    // Position DJUI 1.1 meters in front of head
+    // Position DJUI 1.1 meters forward in VIEW space (head-locked)
+    // In VIEW space, -Z is forward, so we use negative Z
     float djui_distance = 1.1f;
-    djuiLayer.pose.position.x = headPose.position.x + forward_x * djui_distance;
-    djuiLayer.pose.position.y = headPose.position.y + forward_y * djui_distance;
-    djuiLayer.pose.position.z = headPose.position.z + forward_z * djui_distance;
+    djuiLayer.pose.position.x = 0.0f;
+    djuiLayer.pose.position.y = -0.2f;
+    djuiLayer.pose.position.z = -djui_distance;  // Forward is -Z in VIEW space
     
-    // Orient DJUI to face the head
-    djuiLayer.pose.orientation = headPose.orientation;
+    // Identity orientation (no rotation needed in VIEW space)
+    djuiLayer.pose.orientation = {0.0f, 0.0f, 0.0f, 1.0f};
     
     // Size: 1.0m wide x 0.5625m tall (16:9 aspect ratio)
-    djuiLayer.size = {1.0f, 0.5625f};
+    djuiLayer.size = {0.8f, 0.45f};
     
     djuiLayer.subImage.swapchain = g_vr_renderer.djuiSwapchain->swapchain;
     djuiLayer.subImage.imageRect.offset = {0, 0};
