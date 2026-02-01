@@ -103,6 +103,8 @@ EXTRA_CFLAGS ?=
 EXTRA_CPP_FLAGS ?=
 EXTRA_CFLAGS += -Wno-format-security -Wno-trigraphs
 
+
+
 dev:; @$(MAKE) DEVELOPMENT=1
 
 # COMPILER - selects the C compiler to use
@@ -1794,3 +1796,7 @@ MAKEFLAGS += --no-builtin-rules
 -include $(DEP_FILES)
 
 print-% : ; $(info $* is a $(flavor $*) variable set to [$($*)]) @true
+
+# add these at the end 
+EXTRA_CPPFLAGS+="-I$JAVA_HOME/include -I$JAVA_HOME/include/linux"
+EXTRA_CFLAGS+="-I$JAVA_HOME/include -I$JAVA_HOME/include/linux"
