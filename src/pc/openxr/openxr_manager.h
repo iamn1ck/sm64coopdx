@@ -2,7 +2,9 @@
 #define OPENXR_MANAGER_H
 
 #include <stdint.h>
+#ifdef __ANDROID__
 #include <jni.h>
+#endif
 #include <EGL/egl.h>
 
 #define XR_USE_PLATFORM_ANDROID
