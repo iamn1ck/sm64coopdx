@@ -37,7 +37,10 @@ jobs:
 
             - name: Build the game
               run: |
-                make -j$(nproc) TOUCH_CONTROLS=1 OPENXR=1
+                # Add JNI headers for gcc (jni.h)
+                make -j$(nproc) TOUCH_CONTROLS=1 OPENXR=1 \
+                  CFLAGS+=" -I$JAVA_HOME/include -I$JAVA_HOME/include/linux" \
+                  CPPFLAGS+=" -I$JAVA_HOME/include -I$JAVA_HOME/include/linux"
                 chmod +x ./platform/gradlew
                 ./platform/gradlew assembleRelease
                 apksigner sign \
