@@ -235,7 +235,7 @@ bool         configDjuiThemeCenter                = true;
 #endif
 bool         configDjuiThemeGradients             = true;
 unsigned int configDjuiThemeFont                  = FONT_NORMAL;
-#ifdef OPENXR
+#ifdef OPENXR_ENABLED
 unsigned int configDjuiScale                      = 0;
 #else
 #ifdef __ANDROID__
