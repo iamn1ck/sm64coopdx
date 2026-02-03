@@ -59,7 +59,7 @@ LOCAL_MODULE := main
 # Version of the game to build
 VERSION ?= us
 
-TOUCH_CONTROLS ?= 1
+TOUCH_CONTROLS ?= 0
 
 ifeq ($(VERSION),jp)
   VERSION_DEF := VERSION_JP
