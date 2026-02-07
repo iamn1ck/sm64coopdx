@@ -3,7 +3,8 @@ name: Build coop
 on:
     workflow_dispatch:
     push:
-        branches: [ android-dev, 'fix-build' ]
+        branches:
+          - '**'
 
 jobs:
     build-android:
@@ -37,7 +38,6 @@ jobs:
 
             - name: Build the game
               run: |
-                # Add JNI headers for gcc (jni.h)
                 make -j$(nproc) OPENXR=1
                 chmod +x ./platform/gradlew
                 ./platform/gradlew assembleRelease
