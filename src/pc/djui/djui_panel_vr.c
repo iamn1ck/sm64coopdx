@@ -23,11 +23,11 @@ void djui_panel_vr_create(struct DjuiBase* caller) {
 
         char* hudPositionChoices[2] = { DLANG(VR, HUD_POSITION_HEAD_LOCKED), DLANG(VR, HUD_POSITION_LEFT_HAND) };
         djui_selectionbox_create(body, DLANG(VR, HUD_POSITION), hudPositionChoices, 2, &configVrHudPosition, NULL);
-        djui_slider_create(body, DLANG(VR, HUD_DISTANCE), &configVrHudDistance, 1, 15, NULL);
-        djui_slider_create(body, "HUD Yaw", &configVrHudYaw, 0, 100, NULL);
-        djui_slider_create(body, "HUD Pitch", &configVrHudPitch, 0, 100, NULL);
-        djui_slider_create(body, "HUD X", &configVrHudX, 0, 100, NULL);
-        djui_slider_create(body, "HUD Y", &configVrHudY, 0, 100, NULL);
+        djui_slider_create(body, DLANG(VR, HUD_DISTANCE), &configVrHudDistance, 1, 25, NULL);
+        djui_slider_create(body, DLANG(VR, HUD_YAW), &configVrHudYaw, 0, 100, NULL);
+        djui_slider_create(body, DLANG(VR, HUD_PITCH), &configVrHudPitch, 0, 100, NULL);
+        djui_slider_create(body, DLANG(VR, HUD_X), &configVrHudX, 0, 100, NULL);
+        djui_slider_create(body, DLANG(VR, HUD_Y), &configVrHudY, 0, 100, NULL);
 
         char* turnModeChoices[2] = { DLANG(VR, TURN_MODE_CONTINUOUS), DLANG(VR, TURN_MODE_SNAP) };
         djui_selectionbox_create(body, DLANG(VR, TURN_MODE), turnModeChoices, 2, &configVrTurnMode, djui_panel_vr_turn_mode_change);

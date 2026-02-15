@@ -172,7 +172,6 @@ static void first_person_camera_update(void) {
         }
     }
     if (m->action == ACT_LEDGE_GRAB || m->action == ACT_HOLDING_BOWSER) {
-
         gFirstPersonCamera.yaw = m->faceAngle[1] + 0x8000;
     }
 
