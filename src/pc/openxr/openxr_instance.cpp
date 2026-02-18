@@ -231,8 +231,6 @@ XrInstance createXRInstance()
     instanceCreateInfo.type = XR_TYPE_INSTANCE_CREATE_INFO;
     instanceCreateInfo.createFlags = 0;
     strncpy(instanceCreateInfo.applicationInfo.applicationName, applicationName, XR_MAX_APPLICATION_NAME_SIZE);
-    // XR_MAKE_VERSION returns 64-bit, but applicationVersion is 32-bit. 
-    // We just use 1 for now or cast to uint32_t if we want to pack it, but OpenXR 1.0 headers usually expect 32-bit here.
     instanceCreateInfo.applicationInfo.applicationVersion = 1; 
     strncpy(instanceCreateInfo.applicationInfo.engineName, applicationName, XR_MAX_ENGINE_NAME_SIZE);
     instanceCreateInfo.applicationInfo.engineVersion = 1;

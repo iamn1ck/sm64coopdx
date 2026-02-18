@@ -2217,7 +2217,9 @@ void gfx_run(Gfx *commands) {
         gfx_rapi->end_frame();
         gfx_wapi->swap_buffers_begin();
         
+#ifdef __ANDROID__
         return;
+#endif
     }
     
 normal_rendering:

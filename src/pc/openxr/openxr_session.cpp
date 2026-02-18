@@ -112,11 +112,6 @@ XrSession createXRSession(
     XrGraphicsBindingOpenGLXlibKHR graphicsBinding{};
     graphicsBinding.type = XR_TYPE_GRAPHICS_BINDING_OPENGL_XLIB_KHR;
     graphicsBinding.xDisplay = display;
-    graphicsBinding.glxDrawable = 0; // glXGetCurrentDrawable(); // Optional/Not strictly needed if context is enough? Wait, OpenXR spec says: "glxDrawable is a GLXDrawable. The GLXDrawable MUST be valid and MUST be compatible with the glxContext." 
-    // Actually, usually we pass the window or a drawable. Let's see if we can get it or if 0 works (some runtimes accept 0 if they create their own surface). 
-    // However, looking at examples, it's usually required. 
-    // I can get the drawable from glXGetCurrentDrawable() if I include GL/glx.h.
-    // openxr_platform_defines.h includes GL/glx.h. 
     graphicsBinding.glxDrawable = glXGetCurrentDrawable();
     graphicsBinding.glxContext = context;
     
@@ -133,8 +128,6 @@ XrSession createXRSession(
     } else {
         std::cerr << "Error: Failed to get window attributes for drawable " << std::hex << graphicsBinding.glxDrawable << std::dec << std::endl;
     }
-    
-    // NOTE: glXGetCurrentDrawable requires a current context. Since we are initializing in a thread where context is current (implied by passing context), this should work.
 #endif
 
     XrSessionCreateInfo sessionCreateInfo{};

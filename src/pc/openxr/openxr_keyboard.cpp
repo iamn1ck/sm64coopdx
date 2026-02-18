@@ -41,10 +41,8 @@ bool OpenXRKeyboard::Init(XrInstance instance, XrSession session) {
     session_ = session;
 
     // Load function pointers
-    // Use quiet check for the first one to avoid error logs if extension is not present
     XrResult result = xrGetInstanceProcAddr(instance, "xrCreateVirtualKeyboardMETA", (PFN_xrVoidFunction*)&xrCreateVirtualKeyboardMETA_);
     if (result != XR_SUCCESS) {
-        // fail silently
         return false; 
     }
 

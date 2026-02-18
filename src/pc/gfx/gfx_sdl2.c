@@ -158,7 +158,6 @@ static void gfx_sdl_init(const char *window_title) {
 
 #ifdef OPENXR_ENABLED
 #ifndef __ANDROID__
-    // OpenXR on desktop usually requires Core Profile 4.3+
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);

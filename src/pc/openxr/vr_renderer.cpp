@@ -277,45 +277,6 @@ int vr_renderer_render_eye(int eye)
     return 1;
 }
 
-// Helper to get eye pose with IPD offset
-static XrPosef get_eye_pose_with_ipd(int eye) {
-    if (!g_vr_renderer.viewsValid) {
-        return { {0,0,0,1}, {0,0,0} };
-    }
-
-    XrPosef pose = g_vr_renderer.views[eye].pose;
-
-    if (configVrIpdOffset != 50) {
-        XrVector3f leftPos = g_vr_renderer.views[0].pose.position;
-        XrVector3f rightPos = g_vr_renderer.views[1].pose.position;
-
-        // Calculate vector from left to right
-        float dbx = rightPos.x - leftPos.x;
-        float dby = rightPos.y - leftPos.y;
-        float dbz = rightPos.z - leftPos.z;
-        float dist = sqrt(dbx*dbx + dby*dby + dbz*dbz);
-
-        if (dist > 0.001f) {
-            float offset = ((float)configVrIpdOffset - 50.0f) * 0.001f; 
-            float dirX = dbx / dist;
-            float dirY = dby / dist;
-            float dirZ = dbz / dist;
-
-            // Apply offset
-            if (eye == 0) {
-                pose.position.x -= dirX * (offset * 0.5f);
-                pose.position.y -= dirY * (offset * 0.5f);
-                pose.position.z -= dirZ * (offset * 0.5f);
-            } else {
-                pose.position.x += dirX * (offset * 0.5f);
-                pose.position.y += dirY * (offset * 0.5f);
-                pose.position.z += dirZ * (offset * 0.5f);
-            }
-        }
-    }
-    return pose;
-}
-
 // Helper to rotate a vector by a quaternion
 static XrVector3f rotate_vector(const XrQuaternionf& q, const XrVector3f& v) {
     float x = v.x;
@@ -430,7 +391,7 @@ int vr_renderer_end_frame(void)
         OpenXRSwapchain* swapchain = (eye == 0) ? g_vr_renderer.leftSwapchain : g_vr_renderer.rightSwapchain;
         
         projectionViews[eye].type = XR_TYPE_COMPOSITION_LAYER_PROJECTION_VIEW;
-        projectionViews[eye].pose = get_eye_pose_with_ipd(eye);
+        projectionViews[eye].pose = g_vr_renderer.views[eye].pose;
         projectionViews[eye].fov = g_vr_renderer.views[eye].fov;
         projectionViews[eye].subImage.swapchain = swapchain->swapchain;
         projectionViews[eye].subImage.imageRect.offset = {0, 0};
@@ -588,7 +549,6 @@ int vr_renderer_end_frame(void)
         djuiLayer.pose.orientation = multiply_quaternions(djuiLayer.pose.orientation, combinedQ);
     }
     
-    // Submit all layers (projection first, then quads on top)
     // Submit all layers (projection first, then quads on top)
     const XrCompositionLayerBaseHeader* layers[] = {
         (const XrCompositionLayerBaseHeader*)&projectionLayer,
@@ -801,7 +761,7 @@ int vr_renderer_get_view_matrix(int eye, float* matrix)
         return 0;
     }
     
-    pose_to_view_matrix(get_eye_pose_with_ipd(eye), matrix, false);
+    pose_to_view_matrix(g_vr_renderer.views[eye].pose, matrix, false);
     
     return 1;
 }
@@ -812,7 +772,7 @@ extern "C" int vr_renderer_get_view_matrix_no_yaw(int eye, float* matrix)
         return 0;
     }
     
-    pose_to_view_matrix(get_eye_pose_with_ipd(eye), matrix, true);
+    pose_to_view_matrix(g_vr_renderer.views[eye].pose, matrix, true);
     
     return 1;
 }
