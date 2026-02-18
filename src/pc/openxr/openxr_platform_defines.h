@@ -7,6 +7,7 @@
 #define XR_USE_PLATFORM_ANDROID
 #define XR_USE_GRAPHICS_API_OPENGL_ES
 #elif defined(_WIN32)
+#include <GL/glew.h>
 #include <windows.h>
 #include <GL/gl.h>
 #define XR_USE_PLATFORM_WIN32

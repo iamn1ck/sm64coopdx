@@ -17,6 +17,7 @@ extern "C" {
 #include <iostream>
 #include <vector>
 #include <cmath>
+#include <cstring>
 
 #define OPENXR_CONTROLLER_DEBUG 0
 
@@ -660,7 +661,7 @@ static inline void controller_openxr_add_binds(const u32 mask, const u32 *btns) 
 }
 
 static void controller_openxr_bind(void) {
-    bzero(openxr_binds, sizeof(openxr_binds));
+    memset(openxr_binds, 0, sizeof(openxr_binds));
     num_openxr_binds = 0;
 
     controller_openxr_add_binds(A_BUTTON,     configKeyA);

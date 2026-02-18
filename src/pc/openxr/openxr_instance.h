@@ -1,8 +1,6 @@
 #ifndef OPENXR_INSTANCE_H
 #define OPENXR_INSTANCE_H
 
-#include <EGL/egl.h>
-
 #include "openxr_platform_defines.h"
 
 #ifdef __cplusplus

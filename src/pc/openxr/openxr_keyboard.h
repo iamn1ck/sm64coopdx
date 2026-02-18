@@ -24,6 +24,12 @@ void openxr_render_keyboard(int eye);
 // C++ interface
 #ifdef __cplusplus
 
+// GLEW must be included before any other OpenGL headers (gl.h, SDL_opengl.h, etc.)
+// This is required on Windows to ensure proper OpenGL function pointers
+#if defined(_WIN32) && !defined(USE_GLES)
+# include <GL/glew.h>
+#endif
+
 #ifdef USE_GLES
 #include <GLES3/gl3.h>
 #else
@@ -44,7 +50,9 @@ void openxr_render_keyboard(int eye);
 #    define GL_GLEXT_PROTOTYPES 1
 #   endif
 #  endif
-#  include <GL/glew.h>
+#  ifndef _WIN32
+#   include <GL/glew.h>
+#  endif
 #  include <GL/gl.h>
 # endif
 #endif

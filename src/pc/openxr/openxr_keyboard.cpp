@@ -7,6 +7,7 @@
 #include <vector>
 #include <algorithm>
 #include <cmath>
+#include <functional>
 #include <fstream>
 #include <set>
 #include <map>

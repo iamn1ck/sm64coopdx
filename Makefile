@@ -181,6 +181,7 @@ ifeq ($(WINDOWS_BUILD),1)
     TARGET_BITS = 64
     NO_BZERO_BCOPY := 1
   endif
+  DEFINES += _USE_MATH_DEFINES
 endif
 
 # Determine default windows target bits
