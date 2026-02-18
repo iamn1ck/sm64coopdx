@@ -9,12 +9,7 @@
 #include <cstring>
 #include <cmath>
 
-#ifdef __ANDROID__
-#define XR_USE_PLATFORM_ANDROID
-#endif
-#define XR_USE_GRAPHICS_API_OPENGL_ES
-#include <openxr/openxr.h>
-#include <openxr/openxr_platform.h>
+
 
 using namespace std;
 
@@ -220,7 +215,15 @@ int vr_renderer_begin_frame(void)
         g_vr_renderer.viewsValid = false;
         return 0;
     }
+
     
+    // If we shouldn't render (e.g. frame discarded), return 0 to skip frame
+    if (!g_vr_renderer.frameState.shouldRender) {
+        g_vr_renderer.frameActive = true; // Still mark active so we can call end_frame
+        // Returning 0 will cause gfx_pc.c to call openxr_end_frame_empty() and skip rendering
+        return 0;
+    }
+
     g_vr_renderer.viewsValid = true;
     return 1;
 }
@@ -229,6 +232,10 @@ int vr_renderer_render_eye(int eye)
 {
     if (!g_vr_renderer.initialized || !g_vr_renderer.frameActive || !g_vr_renderer.viewsValid) {
         return 0;
+    }
+
+    if (!g_vr_renderer.frameState.shouldRender) {
+        return 1; // Skip rendering, but return success
     }
     
     if (eye < 0 || eye > 1) {
@@ -357,8 +364,9 @@ int vr_renderer_end_frame(void)
     }
     
     // Release swapchain images for both eyes
-    for (int eye = 0; eye < 2; eye++) {
-        OpenXRSwapchain* swapchain = (eye == 0) ? g_vr_renderer.leftSwapchain : g_vr_renderer.rightSwapchain;
+    if (g_vr_renderer.frameState.shouldRender) {
+        for (int eye = 0; eye < 2; eye++) {
+            OpenXRSwapchain* swapchain = (eye == 0) ? g_vr_renderer.leftSwapchain : g_vr_renderer.rightSwapchain;
         
         XrSwapchainImageReleaseInfo releaseInfo{};
         releaseInfo.type = XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO;
@@ -369,9 +377,12 @@ int vr_renderer_end_frame(void)
             cerr << "Failed to release swapchain image for eye " << eye << ": " << result << endl;
         }
     }
+    }
 
     // Release quad swapchain images  
-    vr_renderer_release_quad_images();
+    if (g_vr_renderer.frameState.shouldRender) {
+        vr_renderer_release_quad_images();
+    }
     
     // Submit frame to OpenXR with all layers (projection + quads)
     XrCompositionLayerProjectionView projectionViews[2]{};
@@ -549,8 +560,14 @@ int vr_renderer_end_frame(void)
     frameEndInfo.type = XR_TYPE_FRAME_END_INFO;
     frameEndInfo.displayTime = g_vr_renderer.frameState.predictedDisplayTime;
     frameEndInfo.environmentBlendMode = XR_ENVIRONMENT_BLEND_MODE_OPAQUE;
-    frameEndInfo.layerCount = 3;  // Projection + 2 quad layers
-    frameEndInfo.layers = layers;
+    
+    if (g_vr_renderer.frameState.shouldRender) {
+        frameEndInfo.layerCount = 3;  // Projection + 2 quad layers
+        frameEndInfo.layers = layers;
+    } else {
+        frameEndInfo.layerCount = 0;
+        frameEndInfo.layers = nullptr;
+    }
     
     XrResult result = xrEndFrame(g_vr_renderer.xrSession, &frameEndInfo);
     
@@ -878,6 +895,10 @@ extern "C" int vr_renderer_acquire_quad_images(void)
 {
     if (!g_vr_renderer.initialized || !g_vr_renderer.frameActive) {
         return 0;
+    }
+    
+    if (!g_vr_renderer.frameState.shouldRender) {
+        return 1; // Skip acquisition but return success
     }
     
     // Acquire HUD quad swapchain image

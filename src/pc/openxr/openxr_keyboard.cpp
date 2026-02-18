@@ -7,15 +7,12 @@
 #include <vector>
 #include <algorithm>
 #include <cmath>
+#include <functional>
 #include <fstream>
 #include <set>
 #include <map>
 
-#ifdef USE_GLES
-#include <GLES3/gl3.h>
-#else
-#include <GL/gl.h>
-#endif
+
 
 #define OXR(func) \
     { \
@@ -44,7 +41,11 @@ bool OpenXRKeyboard::Init(XrInstance instance, XrSession session) {
     session_ = session;
 
     // Load function pointers
-    OXR_RET(xrGetInstanceProcAddr(instance, "xrCreateVirtualKeyboardMETA", (PFN_xrVoidFunction*)&xrCreateVirtualKeyboardMETA_));
+    XrResult result = xrGetInstanceProcAddr(instance, "xrCreateVirtualKeyboardMETA", (PFN_xrVoidFunction*)&xrCreateVirtualKeyboardMETA_);
+    if (result != XR_SUCCESS) {
+        return false; 
+    }
+
     OXR_RET(xrGetInstanceProcAddr(instance, "xrDestroyVirtualKeyboardMETA", (PFN_xrVoidFunction*)&xrDestroyVirtualKeyboardMETA_));
     OXR_RET(xrGetInstanceProcAddr(instance, "xrCreateVirtualKeyboardSpaceMETA", (PFN_xrVoidFunction*)&xrCreateVirtualKeyboardSpaceMETA_));
     OXR_RET(xrGetInstanceProcAddr(instance, "xrSuggestVirtualKeyboardLocationMETA", (PFN_xrVoidFunction*)&xrSuggestVirtualKeyboardLocationMETA_));

@@ -6,6 +6,8 @@
 #include "types.h"
 #include "pc/platform.h"
 
+#include <math.h>
+
 /*
  * The sine and cosine tables overlap, but "#define gCosineTable (gSineTable +
  * 0x400)" doesn't give expected codegen; gSineTable and gCosineTable need to
