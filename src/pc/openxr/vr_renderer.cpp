@@ -9,7 +9,7 @@
 #include <cstring>
 #include <cmath>
 
-
+#include "vr_opengl.h"
 
 using namespace std;
 
@@ -43,6 +43,9 @@ static struct {
     uint32_t swapchainIndices[2];
     uint32_t quadSwapchainIndex;  // HUD layer
     uint32_t djuiSwapchainIndex;  // DJUI layer
+    
+    // Config tracking for dynamic changes
+    float lastRenderScale;
 } g_vr_renderer = {
     false,
     nullptr,
@@ -60,7 +63,8 @@ static struct {
     false,
     {0, 0},
     0,
-    0
+    0,
+    1.0f
 };
 
 int vr_renderer_init(void)
@@ -138,6 +142,9 @@ int vr_renderer_init(void)
         std::cerr << "Failed to create OpenXR DJUI quad swapchain";
         return 0;
     }
+    
+    // Initialize config tracking
+    g_vr_renderer.lastRenderScale = configVrRenderScale;
 
     
     std::cout << "VR renderer initialized successfully";
@@ -170,6 +177,36 @@ void vr_renderer_shutdown(void)
     std::cout << "VR renderer shutdown complete";
 }
 
+extern "C" void vr_renderer_recreate_swapchains(void)
+{
+    if (!g_vr_renderer.initialized) return;
+
+    std::cout << "Recreating VR swapchains and FBOs due to setting changes..." << std::endl;
+
+    // Destroy existing openGL framebuffers
+    vr_opengl_shutdown();
+
+    // Destroy existing swapchains
+    destroyOpenXRSwapchain(g_vr_renderer.leftSwapchain);
+    destroyOpenXRSwapchain(g_vr_renderer.rightSwapchain);
+
+    // Recreate swapchains with new settings
+    if (!createOpenXRSwapchains(
+            g_vr_renderer.xrInstance,
+            g_vr_renderer.xrSystemId,
+            g_vr_renderer.xrSession,
+            &g_vr_renderer.leftSwapchain,
+            &g_vr_renderer.rightSwapchain)) {
+        std::cerr << "Failed to recreate OpenXR swapchains" << std::endl;
+        return;
+    }
+
+    // Re-initialize openGL FBOs with the new swapchain sizes
+    if (!vr_opengl_init()) {
+        std::cerr << "Failed to recreate VR OpenGL framebuffers" << std::endl;
+    }
+}
+
 int vr_renderer_is_initialized(void)
 {
     return g_vr_renderer.initialized ? 1 : 0;
@@ -179,6 +216,20 @@ int vr_renderer_begin_frame(void)
 {
     if (!g_vr_renderer.initialized) {
         return 0;
+    }
+    
+    // Check if configuration has changed
+    bool needsRecreation = false;
+    if (g_vr_renderer.lastRenderScale != configVrRenderScale) {
+        std::cout << "VR render scale changed from " << g_vr_renderer.lastRenderScale << " to " << configVrRenderScale << std::endl;
+        g_vr_renderer.lastRenderScale = configVrRenderScale;
+        needsRecreation = true;
+    }
+    
+    if (needsRecreation) {
+        // We defer recreation to vr_renderer_recreate_swapchains
+        extern void vr_renderer_recreate_swapchains(void);
+        vr_renderer_recreate_swapchains();
     }
     
     // Frame state was already updated by openxr_update()
@@ -368,15 +419,15 @@ int vr_renderer_end_frame(void)
         for (int eye = 0; eye < 2; eye++) {
             OpenXRSwapchain* swapchain = (eye == 0) ? g_vr_renderer.leftSwapchain : g_vr_renderer.rightSwapchain;
         
-        XrSwapchainImageReleaseInfo releaseInfo{};
-        releaseInfo.type = XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO;
-        
-        XrResult result = xrReleaseSwapchainImage(swapchain->swapchain, &releaseInfo);
-        
-        if (result != XR_SUCCESS) {
-            cerr << "Failed to release swapchain image for eye " << eye << ": " << result << endl;
+            XrSwapchainImageReleaseInfo releaseInfo{};
+            releaseInfo.type = XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO;
+            
+            XrResult result = xrReleaseSwapchainImage(swapchain->swapchain, &releaseInfo);
+            
+            if (result != XR_SUCCESS) {
+                cerr << "Failed to release swapchain image for eye " << eye << ": " << result << endl;
+            }
         }
-    }
     }
 
     // Release quad swapchain images  
