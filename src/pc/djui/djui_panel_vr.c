@@ -29,6 +29,9 @@ void djui_panel_vr_create(struct DjuiBase* caller) {
         djui_slider_create(body, DLANG(VR, HUD_X), &configVrHudX, 0, 100, NULL);
         djui_slider_create(body, DLANG(VR, HUD_Y), &configVrHudY, 0, 100, NULL);
 
+        char* skyboxChoices[3] = { DLANG(VR, SKYBOX_OFF), DLANG(VR, SKYBOX_ORIGINAL), DLANG(VR, SKYBOX_3D) };
+        djui_selectionbox_create(body, DLANG(VR, SKYBOX), skyboxChoices, 3, &configVrSkybox, NULL);
+
         char* turnModeChoices[2] = { DLANG(VR, TURN_MODE_CONTINUOUS), DLANG(VR, TURN_MODE_SNAP) };
         djui_selectionbox_create(body, DLANG(VR, TURN_MODE), turnModeChoices, 2, &configVrTurnMode, djui_panel_vr_turn_mode_change);
 

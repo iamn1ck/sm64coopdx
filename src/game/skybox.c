@@ -13,6 +13,12 @@
 #include "geo_commands.h"
 #include "hardcoded.h"
 #include "skybox.h"
+#include "pc/configfile.h"
+
+#ifdef OPENXR_ENABLED
+#include "pc/openxr/vr_camera.h"
+Mtx *gBackgroundSkyboxRollMtx[3] = {NULL, NULL, NULL};
+#endif
 
 /**
  * @file skybox.c
@@ -285,6 +291,12 @@ Gfx *init_skybox_display_list(s8 player, s8 background, s8 colorIndex) {
     extern Gfx* gBackgroundSkyboxGfx;
 
     s32 dlCommandCount = 5 + (sSkyboxTileNumY * sSkyboxTileNumX) * 7; // 5 for the start and end, plus the amount of skybox tiles
+#ifdef OPENXR_ENABLED
+// if skybox is 2d orig
+    if (vr_camera_is_active() && configVrSkybox == 1) {
+        dlCommandCount += 3;
+    }
+#endif
 
     void *skybox;
     if (gRenderingInterpolated) {
@@ -301,11 +313,48 @@ Gfx *init_skybox_display_list(s8 player, s8 background, s8 colorIndex) {
     } else {
         Mtx *ortho = create_skybox_ortho_matrix(player);
 
-        gSPDisplayList(dlist++, dl_skybox_begin);
+        if(configVrSkybox == 1){
+            gSPDisplayList(dlist++, dl_skybox_orig_begin);
+        }else{
+            gSPDisplayList(dlist++, dl_skybox_begin);
+        }
         gSPMatrix(dlist++, VIRTUAL_TO_PHYSICAL(ortho), G_MTX_PROJECTION | G_MTX_MUL | G_MTX_NOPUSH);
         gSPDisplayList(dlist++, dl_skybox_tile_tex_settings);
+#ifdef OPENXR_ENABLED
+        if (vr_camera_is_active() && configVrSkybox == 2) {
+            s16 roll = vr_camera_get_roll();
+            f32 centerX = sSkyBoxInfo[player].scaledX + SCREEN_WIDTH / 2.0f;
+            f32 centerY = sSkyBoxInfo[player].scaledY - SCREEN_HEIGHT / 2.0f;
+            
+            Mtx *mtxTrans1, *mtxRot, *mtxTrans2;
+            if (gRenderingInterpolated) {
+                mtxTrans1 = gBackgroundSkyboxRollMtx[0];
+                mtxRot    = gBackgroundSkyboxRollMtx[1];
+                mtxTrans2 = gBackgroundSkyboxRollMtx[2];
+            } else {
+                mtxTrans1 = alloc_display_list(sizeof(Mtx));
+                mtxRot    = alloc_display_list(sizeof(Mtx));
+                mtxTrans2 = alloc_display_list(sizeof(Mtx));
+                gBackgroundSkyboxRollMtx[0] = mtxTrans1;
+                gBackgroundSkyboxRollMtx[1] = mtxRot;
+                gBackgroundSkyboxRollMtx[2] = mtxTrans2;
+            }
+            
+            guTranslate(mtxTrans1, centerX, centerY, 0.0f);
+            guRotate(mtxRot, (roll / 65536.0f) * 360.0f, 0, 0, 1.0f);
+            guTranslate(mtxTrans2, -centerX, -centerY, 0.0f);
+            
+            gSPMatrix(dlist++, VIRTUAL_TO_PHYSICAL(mtxTrans1), G_MTX_MODELVIEW | G_MTX_MUL | G_MTX_NOPUSH);
+            gSPMatrix(dlist++, VIRTUAL_TO_PHYSICAL(mtxRot), G_MTX_MODELVIEW | G_MTX_MUL | G_MTX_NOPUSH);
+            gSPMatrix(dlist++, VIRTUAL_TO_PHYSICAL(mtxTrans2), G_MTX_MODELVIEW | G_MTX_MUL | G_MTX_NOPUSH);
+        }
+#endif
         draw_skybox_tile_grid(&dlist, background, player, colorIndex);
-        gSPDisplayList(dlist++, dl_skybox_end);
+        if(configVrSkybox == 1){
+            gSPDisplayList(dlist++, dl_skybox_orig_end);
+        }else{
+            gSPDisplayList(dlist++, dl_skybox_end);
+        }
         gSPEndDisplayList(dlist);
     }
     return skybox;
@@ -325,6 +374,10 @@ Gfx *init_skybox_display_list(s8 player, s8 background, s8 colorIndex) {
 Gfx *create_skybox_facing_camera(s8 player, s8 background, f32 fov,
                                     f32 posX, f32 posY, f32 posZ,
                                     f32 focX, f32 focY, f32 focZ) {
+    if (configVrSkybox == 0) {
+        return NULL;
+    }
+
     if (!gBackgroundSkyboxVerts) {
         gBackgroundSkyboxVerts = growing_array_init(NULL, sSkyboxTileNumY * sSkyboxTileNumX, malloc, free);
         gBackgroundSkyboxVerts->count = sSkyboxTileNumY * sSkyboxTileNumX;
@@ -373,3 +426,140 @@ Gfx *create_skybox_facing_camera(s8 player, s8 background, f32 fov,
 
     return init_skybox_display_list(player, background, colorIndex);
 }
+
+
+Vtx *make_vr_skybox_rect(s32 tileRow, s32 tileCol, s8 colorIndex) {
+    Vtx *verts = alloc_display_list(4 * sizeof(*verts));
+    if (verts == NULL) return NULL;
+
+    f32 scale = 1000.0f; // Radius
+
+    // Azimuth (Theta): 0 to 360 degrees
+    // Col 0 is -Z? Or +Z?
+    // Let's stick with previous logic: angleLeft..angleRight
+    f32 sectorAngle = 45.0f * (M_PI / 180.0f);
+    f32 thetaLeft = tileCol * sectorAngle;
+    f32 thetaRight = (tileCol + 1) * sectorAngle;
+
+    // Elevation (Phi): +90 (Top) to -90 (Bottom)
+    // 8 rows. 0 is Top.
+    // Row 0: 90 to 67.5
+    f32 stackAngle = 22.5f * (M_PI / 180.0f);
+    f32 phiTop = (90.0f * (M_PI / 180.0f)) - (tileRow * stackAngle);
+    f32 phiBot = phiTop - stackAngle;
+
+    // Spherical conversion
+    // y = R * sin(phi)
+    // r_h = R * cos(phi) (horizontal radius at height y)
+    // x = r_h * sin(theta)
+    // z = r_h * cos(theta)
+
+    f32 yTop = scale * sinf(phiTop);
+    f32 rTop = scale * cosf(phiTop);
+    
+    f32 yBot = scale * sinf(phiBot);
+    f32 rBot = scale * cosf(phiBot);
+
+    // TL
+    f32 xTL = rTop * sinf(thetaLeft);
+    f32 zTL = rTop * cosf(thetaLeft);
+    
+    // TR
+    f32 xTR = rTop * sinf(thetaRight);
+    f32 zTR = rTop * cosf(thetaRight);
+    
+    // BL
+    f32 xBL = rBot * sinf(thetaLeft);
+    f32 zBL = rBot * cosf(thetaLeft);
+    
+    // BR
+    f32 xBR = rBot * sinf(thetaRight);
+    f32 zBR = rBot * cosf(thetaRight);
+
+    f32 r = gSkyboxColor[0] / 255.0f;
+    f32 g = gSkyboxColor[1] / 255.0f;
+    f32 b = gSkyboxColor[2] / 255.0f;
+    u8 *colors = sSkyboxColors[colorIndex];
+    
+    // Verts 0(TL), 1(BL), 2(BR), 3(TR)
+    make_vertex(verts, 0, xTL, yTop, zTL, 0, 0, colors[0] * r, colors[1] * g, colors[2] * b, 255);
+    make_vertex(verts, 1, xBL, yBot, zBL, 0, 31 << 5, colors[0] * r, colors[1] * g, colors[2] * b, 255);
+    make_vertex(verts, 2, xBR, yBot, zBR, 31 << 5, 31 << 5, colors[0] * r, colors[1] * g, colors[2] * b, 255);
+    make_vertex(verts, 3, xTR, yTop, zTR, 31 << 5, 0, colors[0] * r, colors[1] * g, colors[2] * b, 255);
+    
+    return verts;
+}
+
+#include "pc/openxr/vr_renderer.h"
+
+Gfx *create_vr_skybox(s8 player, s8 background, s8 colorIndex) {
+    if (!gBackgroundSkyboxVerts) {
+        gBackgroundSkyboxVerts = growing_array_init(NULL, 64, malloc, free);
+        gBackgroundSkyboxVerts->count = 64;
+    }
+
+    gReadOnlyBackground = background;
+    background = gOverrideBackground == -1 ? background : gOverrideBackground;
+
+    if (background == BACKGROUND_ABOVE_CLOUDS && gLevelValues.jrbDarkenSkybox && !(save_file_get_star_flags(gCurrSaveFileNum - 1, COURSE_JRB - 1) & 1)) {
+        colorIndex = 0;
+    }
+
+    s32 numRows = 8;
+    s32 numCols = 8;
+    
+    s32 dlCommandCount = 10 + (numRows * numCols) * 7;
+    Gfx *skybox = alloc_display_list(dlCommandCount * sizeof(Gfx));
+    Gfx *dlist = skybox;
+    
+    if (skybox == NULL) return NULL;
+    
+    gSPDisplayList(dlist++, dl_skybox_begin);
+    gSPClearGeometryMode(dlist++, G_CULL_BACK);
+    gSPDisplayList(dlist++, dl_skybox_tile_tex_settings);
+    
+    // Build a rotation matrix that matches Lakitu's current facing direction
+    // (pos to focus). We use (0,0,0) as origin to keep the skybox centered.
+    Mat4 mtxF;
+    Vec3f from = { 0, 0, 0 };
+    Vec3f to = {
+        gLakituState.focus[0] - gLakituState.pos[0],
+        gLakituState.focus[1] - gLakituState.pos[1],
+        gLakituState.focus[2] - gLakituState.pos[2]
+    };
+    mtxf_lookat(mtxF, from, to, 0);
+
+    Mtx *viewMtx = alloc_display_list(sizeof(Mtx));
+    if (viewMtx) {
+        mtxf_to_mtx(viewMtx, mtxF);
+        // Enable auto-offset so gfx_pc.c applies eye-specific VR rotations and IPD shifts
+        *dlist++ = gSPVRViewOffset(NULL, true); 
+        gSPMatrix(dlist++, VIRTUAL_TO_PHYSICAL(viewMtx), G_MTX_MODELVIEW | G_MTX_LOAD | G_MTX_NOPUSH);
+    }
+    
+    for (s32 row = 0; row < numRows; row++) {
+        for (s32 col = 0; col < numCols; col++) {
+             s32 tileIndex = row * 10 + col;
+             
+             const Texture* texture = NULL;
+            if (background < 0 || background >= 10) {
+                texture = gCustomSkyboxPtrList[tileIndex];
+            } else {
+                texture = (*(SkyboxTexture *) segmented_to_virtual(sSkyboxTextures[background]))[tileIndex];
+            }
+            
+            Vtx *vertices = make_vr_skybox_rect(row, col, colorIndex);
+            
+             gLoadBlockTexture(dlist++, 32, 32, G_IM_FMT_RGBA, texture);
+             gSPVertexNonGlobal(dlist++, VIRTUAL_TO_PHYSICAL(vertices), 4, 0);
+             gSPDisplayList(dlist++, dl_draw_quad_verts_0123);
+        }
+    }
+    
+    gSPDisplayList(dlist++, dl_skybox_end);
+    gSPVRViewOffset(dlist++, true); // Re-enable auto-offset
+    gSPEndDisplayList(dlist);
+    
+    return skybox;
+}
+

@@ -8,6 +8,16 @@
 #include "camera.h"
 #include "envfx_snow.h"
 #include "level_geo.h"
+#ifdef NON_MATCHING
+#include "pc/openxr/vr_renderer.h"
+#endif
+#include "pc/openxr/vr_renderer.h"
+#include "pc/configfile.h"
+
+#ifdef OPENXR_ENABLED
+#include "pc/openxr/vr_camera.h"
+#include "pc/configfile.h"
+#endif
 
 u16 gReadOnlyEnvFx = 0;
 s32 gOverrideEnvFx = -1;
@@ -78,9 +88,34 @@ Gfx *geo_skybox_main(s32 callContext, struct GraphNode *node, UNUSED Mat4 *mtx) 
         struct GraphNodePerspective *camFrustum =
             (struct GraphNodePerspective *) camNode->fnNode.node.parent;
 
-        gfx = create_skybox_facing_camera(0, backgroundNode->background, camFrustum->fov, gLakituState.pos[0],
-                            gLakituState.pos[1], gLakituState.pos[2], gLakituState.focus[0],
-                            gLakituState.focus[1], gLakituState.focus[2]);
+        if (vr_renderer_is_initialized()) {
+            if (configVrSkybox == 0) {
+                gfx = NULL;
+            } else if (configVrSkybox == 1) {
+                // In VR, gLakituState.pos/focus points from Lakitu toward Mario (horizontal).
+                // Instead compute a synthetic focus from the actual VR head orientation so
+                // the skybox yaw/pitch matches where the player is really looking.
+                s16 vrYaw   = vr_camera_get_yaw();
+                s16 vrPitch = vr_camera_get_pitch();
+                // SM64 angle unit: 65536 = 2*PI.  yaw=0 -> facing +Z, yaw=0x4000 -> facing +X.
+                // vr_camera_get_pitch() returns negative SM64 units when looking up (inverted convention).
+                f32 yawRad   =  vrYaw   * (M_PI / 32768.0f);
+                f32 pitchRad = -vrPitch * (M_PI / 32768.0f); // un-invert: positive = looking up
+                f32 horiz    = cosf(pitchRad);
+                f32 focX     = gLakituState.pos[0] + horiz * sinf(yawRad)  * 400.0f;
+                f32 focY     = gLakituState.pos[1] + sinf(pitchRad)        * 400.0f;
+                f32 focZ     = gLakituState.pos[2] + horiz * cosf(yawRad)  * 400.0f;
+                gfx = create_skybox_facing_camera(0, backgroundNode->background, camFrustum->fov,
+                                    gLakituState.pos[0], gLakituState.pos[1], gLakituState.pos[2],
+                                    focX, focY, focZ);
+            } else if (configVrSkybox == 2) {
+                gfx = create_vr_skybox(0, backgroundNode->background, 1);
+            }
+        } else {
+            gfx = create_skybox_facing_camera(0, backgroundNode->background, camFrustum->fov, gLakituState.pos[0],
+                                gLakituState.pos[1], gLakituState.pos[2], gLakituState.focus[0],
+                                gLakituState.focus[1], gLakituState.focus[2]);
+        }
     }
 
     return gfx;

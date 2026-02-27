@@ -183,6 +183,7 @@ extern bool         configSnapTouch;
 #ifdef OPENXR_ENABLED
 extern bool         configVrFirstPersonCamera;
 extern bool         configVrAspectRatioCorrection;
+extern unsigned int configVrSkybox;
 extern unsigned int configVrTurnMode;
 extern unsigned int configVrSnapAngle;
 extern unsigned int configVrHudPosition;

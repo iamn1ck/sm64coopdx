@@ -65,11 +65,22 @@
 #define G_TEXADDR_DJUI     0x13
 #define G_EXECUTE_DJUI     0xdd
 #define G_VR_VIEWOFFSET    0x14  // Control VR view offset application
+#define G_VR_PROJECTION    0x15  // Control VR projection matrix application
 
 #define G_MTX_INVERSE_CAMERA_EXT   0x08
 
+#define gsSPVRViewOffset(enable) \
+    {{ (_SHIFTL(G_VR_VIEWOFFSET, 24, 8) | _SHIFTL((enable), 0, 1)), (u32)(0) }}
+
 #define gSPVRViewOffset(pkt, enable) \
     (Gfx){ { (_SHIFTL(G_VR_VIEWOFFSET, 24, 8) | _SHIFTL((enable), 0, 1)), (u32)(0) } }
+
+#define gsSPVRProjection(enable) \
+    {{ (_SHIFTL(G_VR_PROJECTION, 24, 8) | _SHIFTL((enable), 0, 1)), (u32)(0) }}
+
+#define gSPVRProjection(pkt, enable) \
+    (Gfx){ { (_SHIFTL(G_VR_PROJECTION, 24, 8) | _SHIFTL((enable), 0, 1)), (u32)(0) } }
+
 
 #define	gsSPTextureAddrDjui(c) \
 {{ \
