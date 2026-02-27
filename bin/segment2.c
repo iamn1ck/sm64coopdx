@@ -2363,6 +2363,20 @@ const Gfx dl_skybox_begin[] = {
     gsSPEndDisplayList(),
 };
 
+// 0x02014708 - 0x02014738
+const Gfx dl_skybox_orig_begin[] = {
+    gsDPPipeSync(),
+    gsSPClearGeometryMode(G_LIGHTING),
+    gsDPSetCombineMode(G_CC_MODULATERGB, G_CC_MODULATERGB),
+    gsSPPerspNormalize(0xFFFF),
+#ifdef OPENXR_ENABLED
+        gsSPVRProjection(0),
+        gsSPVRViewOffset(0),
+#endif
+    gsSPMatrix(&matrix_identity, G_MTX_PROJECTION | G_MTX_LOAD | G_MTX_NOPUSH),
+    gsSPEndDisplayList(),
+};
+
 // 0x02014738 - 0x02014768
 const Gfx dl_skybox_tile_tex_settings[] = {
     gsSPMatrix(&matrix_identity, G_MTX_MODELVIEW | G_MTX_LOAD | G_MTX_NOPUSH),
@@ -2379,6 +2393,19 @@ const Gfx dl_skybox_end[] = {
     gsSPTexture(0xFFFF, 0xFFFF, 0, G_TX_RENDERTILE, G_OFF),
     gsSPSetGeometryMode(G_LIGHTING),
     gsDPSetCombineMode(G_CC_SHADE, G_CC_SHADE),
+    gsSPEndDisplayList(),
+};
+
+// 0x02014768 - 0x02014790
+const Gfx dl_skybox_orig_end[] = {
+    gsDPPipeSync(),
+    gsSPTexture(0xFFFF, 0xFFFF, 0, G_TX_RENDERTILE, G_OFF),
+    gsSPSetGeometryMode(G_LIGHTING),
+    gsDPSetCombineMode(G_CC_SHADE, G_CC_SHADE),
+#ifdef OPENXR_ENABLED
+    gsSPVRProjection(1),
+    gsSPVRViewOffset(1),
+#endif
     gsSPEndDisplayList(),
 };
 

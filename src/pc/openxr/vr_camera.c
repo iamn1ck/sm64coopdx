@@ -272,3 +272,28 @@ s16 vr_camera_get_pitch(void)
     
     return (s16)sm64_pitch;
 }
+
+s16 vr_camera_get_roll(void)
+{
+    if (!vr_camera_active) {
+        return 0;
+    }
+    
+    // Get head quaternion
+    float qx, qy, qz, qw;
+    if (!openxr_get_head_quaternion(&qx, &qy, &qz, &qw)) {
+        return 0;
+    }
+    
+    // Calculate roll from quaternion (rotation around Z axis)
+    // roll = atan2(2*(qw*qz + qx*qy), 1 - 2*(qx*qx + z*z))
+    float roll = atan2f(2.0f * (qw * qz + qx * qy), 1.0f - 2.0f * (qx * qx + qz * qz));
+    
+    // Add 90 degrees offset since the skybox image is normally drawn rotated
+    roll -= M_PI / 2.0f;
+    
+    // Convert from radians to SM64 angle format
+    float sm64_roll = roll * (65536.0f / (2.0f * M_PI));
+    
+    return (s16)sm64_roll;
+}

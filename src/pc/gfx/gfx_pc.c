@@ -98,6 +98,7 @@ static struct RSP {
     ALIGNED16 Mat4 vr_view_offset;
     bool vr_matrices_valid;
     bool vr_apply_view_offset; // Whether to apply VR view offset to current matrix
+    bool vr_apply_projection;  // Whether to apply VR projection matrix override
 #endif
 } rsp;
 
@@ -692,7 +693,26 @@ static void OPTIMIZE_O3 gfx_sp_matrix(uint8_t parameters, const int32_t *addr) {
 #ifdef OPENXR_ENABLED
         // Override projection matrix with VR-specific projection when in VR mode
         if (rsp.vr_rendering_active && rsp.vr_matrices_valid) {
-            mtxf_copy(rsp.P_matrix, rsp.vr_projection_override);
+            if (rsp.vr_apply_projection) {
+                mtxf_copy(rsp.P_matrix, rsp.vr_projection_override);
+            } else {
+                // Apply the VR asymmetrical projection shift to orthographic matrices.
+                // This correctly offsets 2D layers like the skybox per-eye (fixes double vision)
+                // without distorting them with the full perspective projection.
+                // In perspective, x_ndc = (x_view * P[0][0] + z_view * P[2][0]) / -z_view
+                // For a 2D quad at z_view = -1 and x_view = x_ortho, and ortho projection O:
+                // x_ndc = x_ortho * O[0][0] + O[3][0] - P[2][0]
+
+                // use for 3d sphere skybox
+                if (configVrSkybox == 2) {
+                    rsp.P_matrix[3][0] -= rsp.vr_projection_override[2][0];
+                    rsp.P_matrix[3][1] -= rsp.vr_projection_override[2][1];
+                }else{
+                    // use for 2d orig skybox
+                    rsp.P_matrix[3][0] -= rsp.vr_projection_override[2][0] * rsp.P_matrix[0][0];
+                    rsp.P_matrix[3][1] -= rsp.vr_projection_override[2][1] * rsp.P_matrix[1][1];
+                }
+            }
         }
 #endif
     } else { // G_MTX_MODELVIEW
@@ -2175,6 +2195,7 @@ void gfx_run(Gfx *commands) {
             gfx_setup_vr_matrices_for_eye(eye);
             rsp.vr_rendering_active = 1;
             rsp.vr_apply_view_offset = true; // Apply VR view offset by default
+            rsp.vr_apply_projection = true;  // Apply VR projection override by default
             
             // Clear and render to this eye
             gfx_rapi->start_frame();  // Clear buffers
@@ -2462,6 +2483,10 @@ void OPTIMIZE_O3 ext_gfx_run_dl(Gfx* cmd) {
         case G_VR_VIEWOFFSET:
             // Control whether VR view offset is applied to subsequent matrices
             rsp.vr_apply_view_offset = (C0(0, 1) != 0);
+            break;
+        case G_VR_PROJECTION:
+            // Control whether VR projection override is applied to subsequent matrices
+            rsp.vr_apply_projection = (C0(0, 1) != 0);
             break;
 #endif
         case G_PPARTTOCOLOR:

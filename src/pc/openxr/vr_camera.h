@@ -35,6 +35,9 @@ s16 vr_camera_get_yaw(void);
 // Get VR camera pitch in SM64 angle format (for first-person camera)
 s16 vr_camera_get_pitch(void);
 
+// Get VR camera roll in SM64 angle format (for skybox rendering)
+s16 vr_camera_get_roll(void);
+
 // Add yaw offset from joystick input (in SM64 angle format)
 void vr_camera_add_yaw_offset(s16 delta);
 
