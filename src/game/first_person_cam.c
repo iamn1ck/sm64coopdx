@@ -39,7 +39,7 @@ struct FirstPersonCamera gFirstPersonCamera = {
 extern s16 gMenuMode;
 
 bool first_person_check_cancels(struct MarioState *m) {
-    if (m->action == ACT_FIRST_PERSON || m->action == ACT_IN_CANNON || m->action == ACT_READING_NPC_DIALOG || m->action == ACT_DISAPPEARED || m->action == ACT_FLYING) {
+    if (m->action == ACT_FIRST_PERSON || m->action == ACT_IN_CANNON || m->action == ACT_READING_NPC_DIALOG || m->action == ACT_DISAPPEARED) {
         return true;
     }
     if (find_object_with_behavior(smlua_override_behavior(bhvActSelector)) != NULL) { return true; }
@@ -224,7 +224,12 @@ void first_person_update(void) {
 
         // check cancels
         bool cancel = first_person_check_cancels(m);
-        if (cancel) { return; }
+        if (cancel) {
+            if (m->action == ACT_READING_NPC_DIALOG) {
+                set_first_person_enabled(false);
+            }
+            return;
+        }
 
         if (m->action == ACT_SHOT_FROM_CANNON && m->area->camera->mode == CAMERA_MODE_INSIDE_CANNON) {
             gFirstPersonCamera.yaw = m->faceAngle[1] + 0x8000;
