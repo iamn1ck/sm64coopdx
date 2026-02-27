@@ -192,6 +192,8 @@ extern unsigned int configVrHudYaw;
 extern unsigned int configVrHudPitch;
 extern unsigned int configVrHudX;
 extern unsigned int configVrHudY;
+extern float        configVrRenderScale;
+extern bool         configVrMaxResolution;
 #endif
 
 // secrets

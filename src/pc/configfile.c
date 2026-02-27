@@ -296,6 +296,8 @@ unsigned int configVrHudYaw                       = 50; // 0-100, 50 = neutral
 unsigned int configVrHudPitch                     = 50; // 0-100, 50 = neutral
 unsigned int configVrHudX                         = 50; // 0-100, 50 = neutral
 unsigned int configVrHudY                         = 50; // 0-100, 50 = neutral
+float        configVrRenderScale                  = 1.0f;
+bool         configVrMaxResolution                = false;
 #endif
 // secrets
 bool configExCoopTheme = false;
@@ -496,6 +498,7 @@ static const struct ConfigOption options[] = {
     {.name = "vr_hud_pitch",                   .type = CONFIG_TYPE_UINT,   .uintValue   = &configVrHudPitch},
     {.name = "vr_hud_x",                       .type = CONFIG_TYPE_UINT,   .uintValue   = &configVrHudX},
     {.name = "vr_hud_y",                       .type = CONFIG_TYPE_UINT,   .uintValue   = &configVrHudY},
+    {.name = "vr_render_scale",                .type = CONFIG_TYPE_FLOAT,  .floatValue  = &configVrRenderScale},
 #endif
 };
 

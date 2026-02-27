@@ -1,4 +1,5 @@
 #include "openxr_swapchain.h"
+#include "pc/configfile.h"
 #include <iostream>
 #include <vector>
 #include <cstdlib>
@@ -103,8 +104,9 @@ int createOpenXRSwapchains(
         }
         
         sc->format = (GLenum)chosenFormat;
-        sc->width = configViews[i].recommendedImageRectWidth;
-        sc->height = configViews[i].recommendedImageRectHeight;
+        
+        sc->width = min((uint32_t)(configViews[i].recommendedImageRectWidth * configVrRenderScale), configViews[i].maxImageRectWidth);
+        sc->height = min((uint32_t)(configViews[i].recommendedImageRectHeight * configVrRenderScale), configViews[i].maxImageRectHeight);
         
         cout << "Creating swapchain for eye " << i 
              << " with resolution " << sc->width << "x" << sc->height << endl;
