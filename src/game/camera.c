@@ -3182,7 +3182,9 @@ void update_camera(struct Camera *c) {
     update_camera_hud_status(c);
 
     if ((gOverrideFreezeCamera || get_first_person_enabled()) && !gDjuiInMainMenu) {
-        return;
+        if (c->cutscene == 0) {
+            return;
+        }
     }
 
     update_romhack_camera_override(c);
